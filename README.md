@@ -1,2 +1,1 @@
 # curveLandscape
-isable-wiki
