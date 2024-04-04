@@ -3,9 +3,23 @@
 # birth <- 1 / 25
 # death <- 1 / (52 * 7)
 
+
+yearly_prob_to_weekly_prob <- function(p_annual) {
+  1 - (1 - p_annual)**(1 / 52)
+}
+
+rate_to_probability <- function(rate) {
+  1 - exp(-rate)
+}
+
 birth <-  4.81 / 100
 death <- 0.67 / 100
+rate_conversion <- function(rate) {
+  yearly_prob_to_weekly_prob(rate_to_probability(rate))
+}
 
+birth <- rate_conversion(birth) 
+death <- rate_conversion(death)
 growth_rate <- birth - death
 growth_rate
 
@@ -13,9 +27,11 @@ if (growth_rate <= 1) {
   message("growth rate will lead to extinction")
 }
 
+growth_rate <- yearly_prob_to_weekly_prob(rate_to_probability(growth_rate))
+
 u0 <- 100
 
-max_t_years <- 20
+max_t_years <- 100
 max_t_weeks <- max_t_years * 52
 
 reps <- 100
