@@ -1,3 +1,6 @@
 {
-    "r.lsp.diagnostics": false
+    "r.lsp.diagnostics": false,
+    "rust-analyzer.linkedProjects": [
+        "src/rust/Cargo.toml"
+    ]
 }
