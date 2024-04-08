@@ -1,15 +1,13 @@
 #'
 #'
 #'
-yearly_prob_to_weekly_prob <- function(p_annual) {
-  1 - (1 - p_annual)**(1 / 52)
-}
-#'
 #'
 probability_to_rate <- function(p, period = 1) {
   -(log(1 - p)) / period
 }
-
+#'
+#'
+#'
 # Assuming initial population
 initial_population <- 100
 # Assuming the ratio of males in the initial population
@@ -47,53 +45,54 @@ litter_size_distr <- c(2, 4, 13, 22.5, 17.5, 14, 9, 3)
 sample_litter_size <- function(n) {
   sample.int(length(litter_size_distr), size = n, replace = TRUE, prob = litter_size_distr)
 }
-
-# probability_to_rate(1, period = 52)
-# 1
-
-# sample_litter_size(10000)
-# VALIDATION
-# sample_litter_size(10000) |>
-#   hist.default(probability = TRUE)
-
-# rate_aging <- c(
-#   1/52,
-#   1/52,
-#   1/52,
-# )
-
 u0 <- c(initial_females, initial_males)
 
 max_t_years <- 20
-max_t_weeks <- max_t_years * 52
 
 reps <- 100
 # stopifnot(length(u0) == 1)
-current_u <- rep.int(u0, reps)
-current_t <- rep.int(0, reps)
 u_prototype <- rbind(c(u = u0))[NULL, ]
 u_prototype
 results <- cbind(rep = integer(0), t = numeric(0), u = u_prototype)
 results
 
 id_rep <- seq_len(reps)
-breeding_sows <- 1
-rate_breeding <- 1 / 52
+# breeding_sows <- 1
+rate_breeding <- 1
+# mask_breeding_sows <- c(FALSE, TRUE, FALSE, FALSE, FALSE)
+mask_age_class <-
+  toeplitz(
+    c(TRUE, rep.int(FALSE, times = length(u0) - 1))
+  ) |>
+  asplit(MARGIN = 1)
+# mask_breeding_sows <- c(FALSE, TRUE, FALSE, FALSE, FALSE)
+# mask_age_class[[2]]
+mask_breeding_sows <- mask_age_class[[2]]
+# current_u[mask_breeding_sows]
 
-current_t <- numeric(1)
+current_u <- rep.int(u0, reps)
+current_t <- rep.int(0, reps)
 repeat {
-  current_n <- 1
+  current_n <- length(current_u)
 
   next_unif <- runif(current_n)
   # What is the next event?
   # : count[age_class, sex_class] x mortality[age_class, sex_class]
   # : breeding_sows x breeding_rate
-  delta_t <- -log(next_unif) / ((rate_breeding + 0 + 0) * breeding_sows)
-  next_t <- current_t + delta_t
-  message(glue("{next_t}"))
-  current_t <- next_t 
+  breeding_sows <- current_u[mask_breeding_sows]
 
-  if (current_t >= 250) {
+  # delta_t <- -log(next_unif) / ((sum(rate_breeding * breeding_sows, rate_mortality * current_u)))
+  delta_t <- -log(next_unif) / (c(sum(rate_breeding * breeding_sows), rate_mortality * current_u)))
+  
+  next_t <- current_t + delta_t
+
+  sample.int(n = 5 + 1, size = current_n, replace = TRUE,
+    prob = c(rate_mortality*current_u, rate_breeding * breeding_sows))
+
+  # message(glue("{next_t}"))
+  current_t <- next_t
+
+  if (current_t >= max_t_years) {
     break
   }
 }

@@ -1,14 +1,32 @@
-#'
-#'
-#'
+
+# region: Helpers
+
 yearly_prob_to_weekly_prob <- function(p_annual) {
   1 - (1 - p_annual)**(1 / 52)
 }
-#'
-#'
-probability_to_rate <- function(p, period = 1) {
-  -(log(1 - p)) / period
+
+rate_to_probability <- function(rate) {
+  1 - exp(-rate)
 }
+
+probability_to_rate <- function(prob) {
+  # p = 1 - exp(-rate)
+  # 1 - p = exp(-rate)
+  # log(1-p) = -rate
+  # rate = -log(1-p)
+  -log(1-p)
+}
+
+rate_conversion <- function(rate) {
+  yearly_prob_to_weekly_prob(rate_to_probability(rate))
+}
+
+# endregion
+
+# FIRST APPROACH
+# birth <-  4.81 / 100
+# death <- 0.67 / 100
+
 
 # Assuming initial population
 initial_population <- 100
@@ -40,73 +58,70 @@ rate_mortality <- c(
   male_mortality_1_2,
   male_mortality_2plus
 )
-rate_mortality <- probability_to_rate(rate_mortality)
+
+# rate_mortality <- probability_to_rate(rate_mortality)
 # rexp(100, rate_mortality)
 
-litter_size_distr <- c(2, 4, 13, 22.5, 17.5, 14, 9, 3)
+litter_size_distr <- c(2, 4, 13, 22.5, 17.5, 14, 9, 3) / 100
+litter_size_distr <- c(0 = 1 - sum(litter_size_distr), litter_size_distr)
+# litter_size_distr <- litter_size_distr / sum(litter_size_distr)
+
 sample_litter_size <- function(n) {
-  sample.int(length(litter_size_distr), size = n, replace = TRUE, prob = litter_size_distr)
+  sample.int(length(litter_size_distr), size = n, replace = TRUE, prob = litter_size_distr) - 1
 }
 
-# probability_to_rate(1, period = 52)
-# 1
+sample_litter_size(1000) |>
+  hist(prob = TRUE, 
+    # breaks = 1,
+    main = "Litter size distribution")
 
-# sample_litter_size(10000)
-# VALIDATION
-# sample_litter_size(10000) |>
-#   hist.default(probability = TRUE)
+# rate_litter_size <- litter_size_distr * seq_along(litter_size_distr)
+# rate_litter_size <- rate_litter_size |> sum()
+# rate_litter_size 
 
-# rate_aging <- c(
-#   1/52,
-#   1/52,
-#   1/52,
-# )
+# probability_to_rate(1)
+
+rate_mortality
+
+
 
 u0 <- c(initial_females, initial_males)
 
-max_t_years <- 20
+
+
+
+birth <- rate_conversion(birth) 
+death <- rate_conversion(death)
+# growth_rate <- birth - death
+# growth_rate
+
+# if (growth_rate <= 1) {
+#   message("growth rate will lead to extinction")
+# }
+
+# growth_rate <- yearly_prob_to_weekly_prob(rate_to_probability(growth_rate))
+rm(growth_rate)
+
+
+u0 <- 100
+
+max_t_years <- 100
 max_t_weeks <- max_t_years * 52
 
 reps <- 100
-# stopifnot(length(u0) == 1)
+stopifnot(length(u0) == 1)
 current_u <- rep.int(u0, reps)
 current_t <- rep.int(0, reps)
-u_prototype <- rbind(c(u = u0))[NULL, ]
-u_prototype
-results <- cbind(rep = integer(0), t = numeric(0), u = u_prototype)
-results
-
+results <- cbind(rep = integer(0), t = numeric(0), u = numeric(0))
 id_rep <- seq_len(reps)
-breeding_sows <- 1
-rate_breeding <- 1 / 52
-
-current_t <- numeric(1)
-repeat {
-  current_n <- 1
-
-  next_unif <- runif(current_n)
-  # What is the next event?
-  # : count[age_class, sex_class] x mortality[age_class, sex_class]
-  # : breeding_sows x breeding_rate
-  delta_t <- -log(next_unif) / ((rate_breeding + 0 + 0) * breeding_sows)
-  next_t <- current_t + delta_t
-  message(glue("{next_t}"))
-  current_t <- next_t 
-
-  if (current_t >= 250) {
-    break
-  }
-}
-
 
 repeat {
   current_n <- length(current_u)
   next_unif <- runif(current_n)
-
-  # DEBUG
-  # stopifnot(
-  #   vapply(next_unif, \(x) !isTRUE(all.equal.numeric(x, 0)), FUN.VALUE = logical(1))
-  # )
+  
+  stopifnot(
+    vapply(next_unif, \(x) !isTRUE(all.equal.numeric(x, 0)), FUN.VALUE = logical(1))
+  )
 
   delta_t <- -log(next_unif) / ((birth + death) * current_u)
   next_t <- current_t + delta_t
@@ -129,7 +144,7 @@ repeat {
   elapsed_t <- which(current_t >= max_t_weeks)
   elapsed_u <- which(current_u == 0)
   elapsed_reps <- unique(c(elapsed_t, elapsed_u))
-
+    
   if (length(elapsed_reps) > 0) {
     # message(glue("{length(elapsed_u)}"))
 
@@ -138,8 +153,7 @@ repeat {
     current_t <- current_t[-elapsed_reps]
     id_rep <- id_rep[-elapsed_reps]
   }
-  stopifnot(
-    length(current_u) == length(current_t),
+  stopifnot(length(current_u) == length(current_t),
     length(current_t) == length(id_rep)
   )
   if (length(current_u) == 0) {
@@ -150,17 +164,19 @@ stopifnot(length(id_rep) == 0)
 # current_t
 # current_u
 # id_rep
-results <- results |>
+results <- results |> 
   as_tibble()
 
-results |>
+results |> 
   ggplot() +
-  aes(t, u, group = rep) +
-  # geom_step() +
-  geom_line(aes(alpha = u), show.legend = FALSE) +
+  aes(t, u, group = rep) + 
+  # geom_step() + 
+  geom_line(aes(alpha = u), show.legend = FALSE) + 
+  
   scale_alpha_continuous(range = c(0.15)) +
-  theme_bw()
 
+  theme_bw()
 #'
-#'
-#'
+#' 
+#' 
+#' 

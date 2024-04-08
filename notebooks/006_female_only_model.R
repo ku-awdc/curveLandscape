@@ -8,32 +8,30 @@ rate_to_probability <- function(rate) {
 
 # birth <- 5 / 100
 # death <- 5 / 100
-birth <-  4.81 / 100
-death <- 0.67 / 100
 
-rate_conversion <- function(rate) {
-  yearly_prob_to_weekly_prob(rate_to_probability(rate))
-}
+litter_size_distr <- c(2, 4, 13, 22.5, 17.5, 14, 9, 3) / 100
+avg_litter_size <- sum(seq_along(litter_size_distr) * litter_size_distr)
+avg_litter_size <- avg_litter_size / 2
 
-birth <- rate_conversion(birth)
-death <- rate_conversion(death)
-# growth_rate <- birth - death
-# growth_rate
-
-# if (growth_rate <= 1) {
-#   message("growth rate will lead to extinction")
+# litter_size_distr %>% sum()
+# litter_size0 <- c(`0` = 1 - sum(litter_size_distr), litter_size_distr)
+# sample_litter_size <- function(n) {
+#   sample.int(length(litter_size0),
+#              size = n, replace = TRUE, prob = litter_size0) - 1
 # }
 
-# growth_rate <- yearly_prob_to_weekly_prob(rate_to_probability(growth_rate))
-rm(growth_rate)
+birth <-  avg_litter_size
+birth <- yearly_prob_to_weekly_prob(rate_to_probability(birth))
+death <- 0.6540
+death <- yearly_prob_to_weekly_prob(death)
+c(birth = birth, death = death)
 
-
-u0 <- 100
-
-max_t_years <- 25
-max_t_weeks <- max_t_years * 52
+u0 <- 4
 
 reps <- 100
+max_t_years <- 3
+max_t_weeks <- max_t_years * 52
+
 stopifnot(length(u0) == 1)
 current_u <- rep.int(u0, reps)
 current_t <- rep.int(0, reps)

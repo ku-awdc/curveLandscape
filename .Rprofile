@@ -6,4 +6,6 @@ if (interactive()) {
   # require("tidylog")
   library("sf")
   library("usethis")
+  library("remotes")
+  library("rextendr")
 }
