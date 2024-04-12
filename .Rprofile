@@ -5,7 +5,7 @@ if (interactive()) {
   library("tidyverse")
   # require("tidylog")
   library("sf")
-  library("usethis")
+  library("usethis", exclude = "git_credentials")
   library("remotes")
   library("rextendr")
 }

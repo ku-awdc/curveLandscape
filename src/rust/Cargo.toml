@@ -3,10 +3,13 @@ name = 'curveLandscape'
 publish = false
 version = '0.1.0'
 edition = '2021'
+authors = ["Mossa Merhi Reimert"]
 
 [lib]
 crate-type = [ 'staticlib' ]
 name = 'curveLandscape'
 
 [dependencies]
-extendr-api = '*'
+# extendr-api = '*'
+extendr-api = { git = "https://github.com/extendr/extendr.git" }
+readonly = "0.2.12"

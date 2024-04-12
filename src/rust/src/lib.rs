@@ -1,4 +1,10 @@
+#![allow(non_snake_case)]
+// disable periodically
+#![allow(dead_code)]
+
 use extendr_api::prelude::*;
+
+mod birth_death_discrete;
 
 /// Return string `"Hello world!"` to R.
 /// @export
@@ -12,5 +18,5 @@ fn hello_world() -> &'static str {
 // See corresponding C code in `entrypoint.c`.
 extendr_module! {
     mod curveLandscape;
-    fn hello_world;
+    // fn hello_world;
 }

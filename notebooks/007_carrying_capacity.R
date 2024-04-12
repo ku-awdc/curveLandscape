@@ -29,6 +29,8 @@ c(birth = birth, death = death)
 birth_baseline <- birth
 death_baseline <- death
 
+(birth_baseline - death_baseline) / (birth_baseline + death_baseline)
+
 #' carrying capacity
 k0 <- 80
 u0 <- 4
@@ -37,7 +39,7 @@ if (any(k0 > u0)) {
   warning("Starting population larger than carrying capacity")
 }
 
-reps <- 1000
+reps <- 250
 max_t_years <- 25
 # max_t_weeks <- max_t_years * 52
 
@@ -62,10 +64,15 @@ repeat {
   # birth <- birth_baseline * (1 - current_u / k0)
   # death <- death_baseline * (1 + current_u / k0)
 
-  birth <- birth_baseline * pmax(0, (1 - current_u / k0))
+  # birth <- birth_baseline * pmax(0, (1 - 0.5 * current_u / k0))
+  # birth <- birth_baseline * pmax(0, (1 - 1 * current_u / k0))
   # birth <- birth_baseline
-  death <- death_baseline * (1 + current_u / k0)
+  # death <- death_baseline * (1 + 0.5 * current_u / k0)
   # death <- death_baseline
+
+  birth <- birth_baseline * (1 - (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
+  death <- death_baseline * (1 + (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
+
 
   delta_t <- -log(next_unif) / ((birth + death) * current_u)
   next_t <- current_t + delta_t
@@ -143,16 +150,17 @@ ode_results <- deSolve::ode(
                death_baseline = death_baseline),
   func = function(times, y, parameters) {
     with(parameters, {
-      # dN <- r * y * (1 - y / k0) # doesn't work
+      dN <- r * y * (1 - y / k0) # doesn't work
       # dN <- r * y * pmax(0, (1 - y / k0))
 
-      birth <- birth_baseline * pmax(0, (1 - y / k0))
-      death <- death_baseline * (1 + y / k0)
-      dN <- y * (birth - death)
+      # birth <- birth_baseline * pmax(0, (1 - y / k0))
+      # death <- death_baseline * (1 + y / k0)
+      # dN <- y * (birth - death)
 
-      dN <- y * (birth_baseline - death_baseline - birth_baseline*(y / k0) - death_baseline*(y / k0))
+      # dN <- y * (birth_baseline - death_baseline - birth_baseline*(y / k0) - death_baseline*(y / k0))
 
-      dN <- y * (birth_baseline - death_baseline - (birth_baseline+death_baseline)*(y / k0))
+      # dN <- y * (birth_baseline - death_baseline - (birth_baseline+death_baseline)*(y / k0))d
+      # dN <- r * y - 0.5 * (birth_baseline + death_baseline) * y*y / k0
 
       #dN <- y * (birth_baseline - death_baseline - birth_baseline * (y / k0) + death_baseline * (y / k0))
       #dN <- y * (birth_baseline - death_baseline - birth_baseline * pmin(1, y / k0) + death_baseline * (y / k0))
@@ -170,8 +178,8 @@ p_traj +
   geom_line(aes(color = "ODE", group = NA), data = ode_results) +
   NULL
 
-curve((birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), from=0, to=160)
-abline(h=0)
-
-curve((birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), from=0, to=160)
-optimise(function(x) abs(birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), interval=c(0,1e3))
+# curve((birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), from=0, to=160)
+# abline(h=0)
+#
+# curve((birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), from=0, to=160)
+# optimise(function(x) abs(birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), interval=c(0,1e3))
