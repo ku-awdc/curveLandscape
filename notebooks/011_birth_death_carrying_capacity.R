@@ -6,6 +6,8 @@ rate_to_probability <- function(rate) {
   1 - exp(-rate)
 }
 
+# set.seed(20240412)
+
 # birth <- 5 / 100
 # death <- 5 / 100
 
@@ -61,14 +63,6 @@ repeat {
     vapply(next_unif, \(x) !isTRUE(all.equal.numeric(x, 0)), FUN.VALUE = logical(1))
   )
   # stopifnot(current_u < k0)
-  # birth <- birth_baseline * (1 - current_u / k0)
-  # death <- death_baseline * (1 + current_u / k0)
-
-  # birth <- birth_baseline * pmax(0, (1 - 0.5 * current_u / k0))
-  # birth <- birth_baseline * pmax(0, (1 - 1 * current_u / k0))
-  # birth <- birth_baseline
-  # death <- death_baseline * (1 + 0.5 * current_u / k0)
-  # death <- death_baseline
 
   birth <- birth_baseline * (1 - (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
   death <- death_baseline * (1 + (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
@@ -105,15 +99,21 @@ repeat {
   if (length(elapsed_reps) > 0) {
     # message(glue("{length(elapsed_u)}"))
 
+    #add `t_max` to the `elapsed_u` group
+    # results <- rbind(
+    #   results, cbind(rep = id_rep[elapsed_u],
+    #                  # t = current_t[elapsed_u],
+    #                  t = rep.int(max_t_years, length(elapsed_u)),
+    #                  u = current_u[elapsed_u])
+    # )
+
     # remove the elapsed simulations from consideration
     current_u <- current_u[-elapsed_reps]
     current_t <- current_t[-elapsed_reps]
     id_rep <- id_rep[-elapsed_reps]
-
-    #TODO: add t_max to the `elapsed_u` group
   }
   stopifnot(length(current_u) == length(current_t),
-    length(current_t) == length(id_rep)
+            length(current_t) == length(id_rep)
   )
   if (length(current_u) == 0) {
     break
@@ -150,36 +150,23 @@ ode_results <- deSolve::ode(
                death_baseline = death_baseline),
   func = function(times, y, parameters) {
     with(parameters, {
-      dN <- r * y * (1 - y / k0) # doesn't work
-      # dN <- r * y * pmax(0, (1 - y / k0))
-
-      # birth <- birth_baseline * pmax(0, (1 - y / k0))
-      # death <- death_baseline * (1 + y / k0)
-      # dN <- y * (birth - death)
-
-      # dN <- y * (birth_baseline - death_baseline - birth_baseline*(y / k0) - death_baseline*(y / k0))
-
-      # dN <- y * (birth_baseline - death_baseline - (birth_baseline+death_baseline)*(y / k0))d
-      # dN <- r * y - 0.5 * (birth_baseline + death_baseline) * y*y / k0
-
-      #dN <- y * (birth_baseline - death_baseline - birth_baseline * (y / k0) + death_baseline * (y / k0))
-      #dN <- y * (birth_baseline - death_baseline - birth_baseline * pmin(1, y / k0) + death_baseline * (y / k0))
-
+      dN <- r * y * (1 - y / k0)
       list(dN)
     })
   }
 )
-ode_results<- ode_results %>%
+ode_results <- ode_results %>%
   as_tibble() %>%
   rename(t = time)
 
 p_traj +
-  # geom_smooth(aes(group = NA)) +
+  geom_smooth(aes(group = NA, color = "smooth")) +
   geom_line(aes(color = "ODE", group = NA), data = ode_results) +
-  NULL
 
-# curve((birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), from=0, to=160)
-# abline(h=0)
-#
-# curve((birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), from=0, to=160)
-# optimise(function(x) abs(birth_baseline - death_baseline - (birth_baseline+death_baseline)*(x / k0)), interval=c(0,1e3))
+  labs(color = NULL) +
+  theme(legend.position = "bottom") +
+  NULL
+#'
+#'
+#'
+#'
