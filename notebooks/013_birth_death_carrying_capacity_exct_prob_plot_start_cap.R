@@ -33,24 +33,28 @@ death_baseline <- death
 
 #' carrying capacity
 k0 <- 80
-u0 <- 1
+u0 <- seq.default(1, 12, by = 0.5)
+reps <- 20 * 5 * 2
+max_t_years <- 25
 
 if (any(k0 > u0)) {
   warning("Starting population larger than carrying capacity")
 }
 
-reps <- 250
-max_t_years <- 25
 # max_t_weeks <- max_t_years * 52
 
-stopifnot(length(u0) == 1)
-current_u <- rep.int(u0, reps)
-current_t <- rep.int(0, reps)
-id_rep <- seq_len(reps)
+# stopifnot(length(u0) == 1)
+# TODO: maybe sort it
+current_u <- u0 %>% rep.int(times = reps)
+current_t <- numeric(length(current_u))
+id_rep <- seq_along(current_u)
 results <- cbind(rep = integer(0), t = numeric(0), u = numeric(0))
 results <- rbind(
   results,
   cbind(rep = id_rep, t = current_t, u = current_u)
+)
+results_info <- list(
+  u0 = tibble(rep = id_rep, u0 = current_u)
 )
 
 repeat {
@@ -71,6 +75,9 @@ repeat {
   stopifnot(all(birth > 0), all(death > 0))
 
   delta_t <- -log(next_unif) / ((birth + death) * current_u)
+  # ALTERNATIVE:
+  # delta_t <- rexp(n = current_n, rate = (birth + death) * current_u)
+  stopifnot(all(!is.infinite(delta_t)))
   next_t <- current_t + delta_t
 
   # IDEA: use rexp instead you crazy person
@@ -126,12 +133,22 @@ stopifnot(length(id_rep) == 0)
 # current_u
 # id_rep
 results <- results |>
-  as_tibble()
-
+  as_tibble() %>%
+  left_join(
+    results_info %>% bind_rows(),
+    by = join_by(rep)
+  )
+u0
+#'
+#'
+#'
+#'
+#'
 p_traj <- results |>
   ggplot() +
   aes(t, u, group = rep) +
   # geom_step() +
+  # geom_line(color = "grey90", show.legend = FALSE) +
   geom_line(aes(alpha = u), show.legend = FALSE) +
   # geom_step(aes(alpha = u), show.legend = FALSE) +
   geom_hline(aes(yintercept = k0), linetype = "dotted") +
@@ -139,9 +156,15 @@ p_traj <- results |>
   scale_alpha_continuous(range = c(0.15)) +
 
   theme_bw()
-p_traj
 #'
-ode_times <- results$t %>% zapsmall() %>%  unique() %>% sort()
+# p_traj
+#'
+
+# p_traj +
+#   facet_grid(~u0) +
+#   lims(u0 = c(0,10))
+#'
+# ode_times <- results$t %>% zapsmall() %>%  unique() %>% sort()
 #'
 #'
 
@@ -157,29 +180,77 @@ ode_results <- deSolve::ode(
     })
   }
 )
-ode_results <- ode_results %>%
+ode_results <-
+  ode_results %>%
+  unclass() %>%
   as_tibble() %>%
-  rename(t = time)
+  rename(t = time) %>%
+  pivot_longer(
+    -t,
+    names_pattern = "u(\\d+)",
+    names_to = c("id_u0"),
+    values_to = "u") %>%
+  mutate(u0 = u0[as.integer(id_u0)],
+         id_u0 = NULL)
+#TODO
+# p_traj +
+#   # `geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'
+#   geom_smooth(aes(group = NA, color = "smooth")) +
+#   geom_line(aes(color = "ODE", group = id_u0), data = ode_results) +
+#
+#   labs(color = NULL) +
+#   theme(legend.position = "bottom") +
+#   NULL
+#'
 
-p_traj +
+ggplot(results) +
+  aes(t, u, group = rep) +
+  # geom_line(aes(color = identity(u0)), show.legend = TRUE) +
+
   # `geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'
-  geom_smooth(aes(group = NA, color = "smooth")) +
-  geom_line(aes(color = "ODE", group = NA), data = ode_results) +
+  geom_smooth(aes(group = u0, color = u0)) +
+  geom_line(aes(color = u0, group = u0), data = ode_results) +
 
+  scale_color_viridis_c(direction = -1) +
   labs(color = NULL) +
+  theme_bw(base_size = 14) +
   theme(legend.position = "bottom") +
   NULL
 #'
+#' Plotting P(extinction, t | u0)
+#'
+results %>%
+  slice_max(t, by = rep) %>%
+  summarise(
+    `P(extinction)` = mean(u < 1),
+    .by = c(u0)
+  ) %>%
+  identity() %>%
+  ggplot() +
+  aes(u0, `P(extinction)`) +
+  geom_line() +
+  # geom_line(aes(color = u0)) +
+  # scale_colour_viridis_c(direction = -1) +
+  # scale_color_viridis_b(direction = -1, n.breaks = 9) +
+
+  labs(y = "P(extinct)",
+       x = "u0",
+       color = NULL) +
+  theme_bw(base_size = 14) +
+  NULL
+#'
+#'
+#'
+#TODO: I need to do this for each of these lines, and calculate the difference
+#' between the two, although they do look very similar...
 #'
 results_approxfun <-
   tapply(
     X = results[, c("t", "u")],
     INDEX = results$rep,
     FUN = \(x) {
+      # rule = 1:2 for extinct numbers make sense.
       approxfun(x$t, y = x$u, method = "constant")
-      # approxfun(x$t, y = x$u, method = "linear")
-      # approxfun(x$t, y = x$u, method = "constant", rule = 1:2)
-      # approxfun(x$t, y = x$u, method = "linear", rule = 1:2)
     }
   )
 #'
@@ -189,26 +260,57 @@ max_t_years
 # curve(
 #   results_approxfun[[40]](x), to = 100
 # )
+results_info %>% str()
+traj_approx_df <-
+  results_approxfun %>%
+  enframe("id_rep", "traj_approxfun") %>%
+  bind_cols(results_info)
+stopifnot(!anyNA(traj_approx_df))
+stopifnot(all(traj_approx_df$id_rep == traj_approx_df$rep))
+traj_approx_df
+# traj_approx_df %>% View()
 
 t_linspace <- seq.default(0, max_t_years, length.out = 100)
+id_time <- seq_along(t_linspace)
+id_time_linspace <- rep.int(id_time, length(results_info$u0$u0))
+
 outcome_linspace <-
   vapply(results_approxfun,
          \(traj_fun) traj_fun(t_linspace),
-         FUN.VALUE = double(100))
+         FUN.VALUE = double(length(t_linspace)))
+# outcome_linspace %>%
+#   Matrix::Matrix() %>% `[`(1:10, 1:10)
+outcome_linspace %>% dim()
+# id_time_linspace %>% dim()
+id_time_linspace %>% length()
+u0_linspace <- rep(results_info$u0$u0, each = length(t_linspace))
+u0_linspace %>% length()
 
-prob_ext <- apply(outcome_linspace, MARGIN = 1, \(x) mean(x<1))
-prob_ext
-# stopifnot(prob_ext %>% names() %>% as.numeric() %>% is.unsorted() %>% `!`())
-
-tibble(
-  t = t_linspace,
-  prob_ext = prob_ext,
-) %>%
+prob_ext <- tapply(
+  X = outcome_linspace,
+  INDEX = list(u0 = u0_linspace, time = id_time_linspace),
+  FUN = \(x) mean(x < 1)
+)
+prob_ext %>%
+  str()
+prob_ext %>%
+  as_tibble()
+prob_ext %>%
+  as.data.frame.table() %>%
+  as_tibble() %>%
+  mutate(u0 = as.numeric(u0),
+         time = as.numeric(time),
+         time = t_linspace[time]) %>%
+  identity() %>%
   ggplot() +
-  aes(t, prob_ext) +
-  geom_line() +
+  aes(time, Freq, group = u0) +
+  geom_line(aes(color = u0)) +
+  # scale_colour_viridis_c(direction = -1) +
+  scale_color_viridis_b(direction = -1, n.breaks = 9) +
+
   labs(y = "P(extinct)",
-       x = "time") +
+       x = "time",
+       color = NULL) +
   theme_bw(base_size = 14) +
   NULL
 #'
