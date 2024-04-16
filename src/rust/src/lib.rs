@@ -4,6 +4,8 @@
 
 use extendr_api::prelude::*;
 
+mod linspace;
+mod logspace;
 mod birth_death_discrete;
 
 /// Return string `"Hello world!"` to R.

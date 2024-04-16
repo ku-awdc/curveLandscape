@@ -6,10 +6,18 @@ edition = '2021'
 authors = ["Mossa Merhi Reimert"]
 
 [lib]
-crate-type = [ 'staticlib' ]
+crate-type = ['staticlib']
 name = 'curveLandscape'
 
 [dependencies]
 # extendr-api = '*'
 extendr-api = { git = "https://github.com/extendr/extendr.git" }
-readonly = "0.2.12"
+itertools = "0.12"
+num-traits = "0.2"
+rand = { version = "0.8", features = ["small_rng"] }
+rand_distr = "0.4"
+readonly = "0.2"
+
+[features]
+default = ["std"]
+std = ["num-traits/std"]
