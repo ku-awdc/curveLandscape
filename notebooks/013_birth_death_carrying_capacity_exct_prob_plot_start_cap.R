@@ -33,8 +33,15 @@ death_baseline <- death
 
 #' carrying capacity
 k0 <- 80
-u0 <- seq.default(1, 12, by = 0.5)
-reps <- 20 * 5 * 2
+# u0 <- seq.default(1, 12, by = 1)
+# u0 %>% log1p()
+# exp(-(0:12) + log(10)) %>% prettyNum()
+# sqrt(c(0:10**2)) %>%
+#   plot(y=rep.int(0, length(.)))
+# sqrt(0:10**2)
+u0 <- seq.default(1, 10, by = 1)
+
+reps <- 20 * 5 * 2 * 2
 max_t_years <- 25
 
 if (any(k0 > u0)) {
@@ -54,7 +61,8 @@ results <- rbind(
   cbind(rep = id_rep, t = current_t, u = current_u)
 )
 results_info <- list(
-  u0 = tibble(rep = id_rep, u0 = current_u)
+  u0 = tibble(id_u0 = seq_along(u0) %>% rep.int(reps),
+              rep = id_rep, u0 = current_u)
 )
 
 repeat {
@@ -78,6 +86,7 @@ repeat {
   # ALTERNATIVE:
   # delta_t <- rexp(n = current_n, rate = (birth + death) * current_u)
   stopifnot(all(!is.infinite(delta_t)))
+  stopifnot(all(delta_t >= 0))
   next_t <- current_t + delta_t
 
   # IDEA: use rexp instead you crazy person
@@ -85,6 +94,9 @@ repeat {
   # death <- yearly_prob_to_weekly_prob(death)
   birth <- rate_to_probability(birth)
   death <- rate_to_probability(death)
+  stopifnot(all(birth >= 0), all(death >= 0),
+            all(birth <= 1), all(death <= 1))
+
   delta_u <- rbinom(n = current_n, size = 1, prob = birth / (birth + death))
   delta_u <- 2 * delta_u - 1
   next_u <- current_u + delta_u
@@ -140,8 +152,66 @@ results <- results |>
   )
 u0
 #'
-#'
-#'
+
+glm_results <- glm(
+  u ~ t + offset(-log(results$u0)),
+  # u ~ factor(id_u0)*0 + t,
+  data = results,
+  family = poisson()
+)
+glm_results
+glm_results %>% summary()
+# glm_results <- glm(
+#   u ~ t + 0,
+#   offset = log(u0),
+#   data = results,
+#   family = poisson()
+# )
+# glm_results
+# glm_results %>% summary()
+# glm_results %>%
+#   predict.glm(
+#     newdata = tibble(t = 0.1),
+#     terms = TRUE
+#   ) %>%
+#   # str()
+#   as_tibble()
+
+# predict.glm(glm_results) %>%
+#   as_tibble()
+# predict.glm(glm_results,
+#             newdata = tibble(t = 0.1, u0 = 1)) %>%
+#   as_tibble()
+#
+# glm_predict <-
+#   expand_grid(
+#     # t = seq.default(0, max_t_years, length.out = 100),
+#     # u0 = seq.default(0, 10, by = 1)
+#   ) %>%
+#   bind_cols(
+#     predict =
+#       predict.glm(
+#         glm_results,
+#         newdata = .,
+#         type = "response"
+#       )
+#   )
+results %>%
+  bind_cols(
+    predict = predict.glm(
+      glm_results, type = "response"
+    )
+  ) %>%
+  nrow()
+# glm_predict %>%
+  ggplot() +
+  aes(t, predict, group = id_u0) +
+
+  geom_line(aes(color = u0)) +
+  scale_color_binned() +
+
+  theme_bw(base_size = 14) +
+  NULL
 #'
 #'
 p_traj <- results |>
@@ -159,6 +229,23 @@ p_traj <- results |>
 #'
 # p_traj
 #'
+#'
+results %>%
+  glimpse() %>%
+
+  # dplyr::filter(identity(rep %in% sample(unique(rep), size = 5))) %>%
+  # distinct(rep)
+  ggplot() +
+  aes(t, u, group = rep) +
+  # geom_step() +
+  # geom_line(color = "grey90", show.legend = FALSE) +
+  geom_line(aes(alpha = u), show.legend = FALSE) +
+  # geom_step(aes(alpha = u), show.legend = FALSE) +
+  geom_hline(aes(yintercept = k0), linetype = "dotted") +
+
+  scale_alpha_continuous(range = c(0.15)) +
+
+  theme_bw()
 
 # p_traj +
 #   facet_grid(~u0) +
@@ -202,16 +289,22 @@ ode_results <-
 #   theme(legend.position = "bottom") +
 #   NULL
 #'
-
-ggplot(results) +
+results %>%
+  dplyr::filter(t<0)
+#'
+results %>%
+  dplyr::filter(id_u0 == 5) %>%
+  ggplot() +
   aes(t, u, group = rep) +
   # geom_line(aes(color = identity(u0)), show.legend = TRUE) +
 
   # `geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'
-  geom_smooth(aes(group = u0, color = u0)) +
+  geom_smooth(aes(group = id_u0, color = id_u0)) +
   geom_line(aes(color = u0, group = u0), data = ode_results) +
 
-  scale_color_viridis_c(direction = -1) +
+  # scale_color_viridis_c(direction = -1) +
+  scale_color_viridis_b(direction = -1) +
+
   labs(color = NULL) +
   theme_bw(base_size = 14) +
   theme(legend.position = "bottom") +
