@@ -141,6 +141,7 @@ repeat {
   }
 }
 stopifnot(length(id_rep) == 0)
+
 # current_t
 # current_u
 # id_rep
@@ -152,6 +153,10 @@ results <- results |>
   )
 u0
 #'
+#' Cache the result
+fs::dir_create(".cache")
+results %>% write_rds(".cache/13_results_with_info.RDS")
+
 
 glm_results <- glm(
   u ~ t + offset(-log(results$u0)),
@@ -196,22 +201,22 @@ glm_results %>% summary()
 #         type = "response"
 #       )
 #   )
-results %>%
-  bind_cols(
-    predict = predict.glm(
-      glm_results, type = "response"
-    )
-  ) %>%
-  nrow()
-# glm_predict %>%
-  ggplot() +
-  aes(t, predict, group = id_u0) +
-
-  geom_line(aes(color = u0)) +
-  scale_color_binned() +
-
-  theme_bw(base_size = 14) +
-  NULL
+# results %>%
+#   bind_cols(
+#     predict = predict.glm(
+#       glm_results, type = "response"
+#     )
+#   ) %>%
+#   # nrow() %>%
+# # glm_predict %>%
+#   ggplot() +
+#   aes(t, predict, group = id_u0) +
+#
+#   geom_line(aes(color = u0)) +
+#   scale_color_binned() +
+#
+#   theme_bw(base_size = 14) +
+#   NULL
 #'
 #'
 p_traj <- results |>
@@ -231,15 +236,16 @@ p_traj <- results |>
 #'
 #'
 results %>%
-  glimpse() %>%
+  # glimpse()
 
-  # dplyr::filter(identity(rep %in% sample(unique(rep), size = 5))) %>%
+  dplyr::filter(rep %in% sample(unique(rep), size = 10),
+                .by = id_u0) %>%
   # distinct(rep)
   ggplot() +
   aes(t, u, group = rep) +
   # geom_step() +
   # geom_line(color = "grey90", show.legend = FALSE) +
-  geom_line(aes(alpha = u), show.legend = FALSE) +
+  geom_line(aes(alpha = u0), show.legend = FALSE) +
   # geom_step(aes(alpha = u), show.legend = FALSE) +
   geom_hline(aes(yintercept = k0), linetype = "dotted") +
 
