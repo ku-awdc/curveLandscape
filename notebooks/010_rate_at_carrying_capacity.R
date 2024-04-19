@@ -12,10 +12,10 @@ tibble(
     birth_adjust = start$birth * pmax(0, (1 -
                                      (start$birth - start$death) /
                                      (start$birth + start$death) * N / K)),
-    death_naive = start$death * (1 + N / K),
-    death_adjust = start$death * (1 +
+    death_naive = start$death * pmax(0, (1 + N / K)),
+    death_adjust = start$death * pmax(0, (1 +
                              (start$birth - start$death) /
-                             (start$birth + start$death) * N / K),
+                             (start$birth + start$death) * N / K)),
     # death = start$death,
     growth_naive = birth_naive - death_naive,
     growth_adjust = birth_adjust - death_adjust
@@ -67,10 +67,10 @@ tibble(
     birth_adjust = start$birth * pmax(0, (1 -
                                             (start$birth - start$death) /
                                             (start$birth + start$death) * N / K)),
-    death_naive = start$death * (1 + N / K),
-    death_adjust = start$death * (1 +
+    death_naive = start$death * pmax(0, (1 + N / K)),
+    death_adjust = start$death * pmax(0, (1 +
                                     (start$birth - start$death) /
-                                    (start$birth + start$death) * N / K),
+                                    (start$birth + start$death) * N / K)),
     # death = start$death,
     growth_naive = birth_naive - death_naive,
     growth_adjust = birth_adjust - death_adjust
