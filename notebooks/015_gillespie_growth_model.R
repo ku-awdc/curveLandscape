@@ -36,13 +36,15 @@ growth_baseline <- birth_baseline - death_baseline
 
 #' carrying capacity
 k0 <- 15
+k0 <- 25
+k0 <- 80
 # u0 <- seq.default(1, 12, by = 1)
 # u0 %>% log1p()
 # exp(-(0:12) + log(10)) %>% prettyNum()
 # sqrt(c(0:10**2)) %>%
 #   plot(y=rep.int(0, length(.)))
 # sqrt(0:10**2)
-u0 <- seq.default(1, 20, by = 1)
+u0 <- seq.default(1, 1.5 * k0, by = 1)
 
 reps <- 50
 max_t_years <- 25
@@ -81,11 +83,19 @@ repeat {
   )
   # stopifnot(current_u < k0)
 
-  birth <- birth_baseline * (1 - (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
-  death <- death_baseline * (1 + (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
-  stopifnot(all(birth > 0), all(death > 0))
+  # birth <- birth_baseline * (1 - (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
+  # death <- death_baseline * (1 + (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
+  # stopifnot(all(birth > 0), all(death > 0))
 
-  delta_t <- -log(next_unif) / ((birth + death) * current_u)
+  # birth <- birth_baseline * (1 - (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
+  # death <- death_baseline * (1 + (birth_baseline - death_baseline) / (birth_baseline + death_baseline) * current_u / k0)
+  # stopifnot(all(birth > 0), all(death > 0))
+
+  growth <- growth_baseline * (1 - current_u / k0)
+  sign_growth <- sign(growth)
+
+  delta_t <- -log(next_unif) / (abs(growth) * current_u)
+  delta_t[current_u == k0] <- 0
   # ALTERNATIVE:
   # delta_t <- rexp(n = current_n, rate = (birth + death) * current_u)
   stopifnot(all(!is.infinite(delta_t)))
@@ -95,13 +105,16 @@ repeat {
   # IDEA: use rexp instead you crazy person
   # birth <- yearly_prob_to_weekly_prob(rate_to_probability(birth))
   # death <- yearly_prob_to_weekly_prob(death)
-  birth <- rate_to_probability(birth)
-  death <- rate_to_probability(death)
-  stopifnot(all(birth >= 0), all(death >= 0),
-            all(birth <= 1), all(death <= 1))
+  # birth <- rate_to_probability(birth)
+  # death <- rate_to_probability(death)
+  growth <- rate_to_probability(abs(growth))
+  # stopifnot(all(birth >= 0), all(death >= 0),
+  #           all(birth <= 1), all(death <= 1))
+  stopifnot(all(0 <= growth), all(growth <= 1))
 
-  delta_u <- rbinom(n = current_n, size = 1, prob = birth / (birth + death))
-  delta_u <- 2 * delta_u - 1
+  # delta_u <- rbinom(n = current_n, size = 1, prob = birth / (birth + death))
+  # delta_u <- 2 * delta_u - 1
+  delta_u <- rbinom(n = current_n, size = 1, prob = growth) * sign_growth
   next_u <- current_u + delta_u
 
   # shift
@@ -118,17 +131,18 @@ repeat {
   # elapsed_t <- which(current_t >= max_t_weeks)
   elapsed_t <- which(current_t >= max_t_years)
   elapsed_u <- which(current_u == 0)
-  elapsed_reps <- unique(c(elapsed_t, elapsed_u))
+  elapsed_k0 <- which(current_u == k0)
+  elapsed_reps <- unique(c(elapsed_t, elapsed_u, elapsed_k0))
 
   if (length(elapsed_reps) > 0) {
     # message(glue("{length(elapsed_u)}"))
 
     #add `t_max` to the `elapsed_u` group
+    elapsed_u_and_k0 <- unique(c(elapsed_u, elapsed_k0))
     results <- rbind(
-      results, cbind(rep = id_rep[elapsed_u],
-                     # t = current_t[elapsed_u],
-                     t = rep.int(max_t_years, length(elapsed_u)),
-                     u = current_u[elapsed_u])
+      results, cbind(rep = id_rep[elapsed_u_and_k0],
+                     t = rep.int(max_t_years, length(elapsed_u_and_k0)),
+                     u = current_u[elapsed_u_and_k0])
     )
 
     # remove the elapsed simulations from consideration
@@ -158,7 +172,7 @@ u0
 #'
 #' Cache the result
 fs::dir_create(".cache")
-results %>% write_rds(".cache/13_results_with_info.RDS")
+results %>% write_rds(".cache/014_results_with_info.RDS")
 
 
 glm_results <- glm(
@@ -241,9 +255,8 @@ p_traj <- results |>
 results %>%
   # glimpse()
 
-  dplyr::filter(rep %in% sample(unique(rep), size = 10),
-                .by = id_u0) %>%
-  # distinct(rep)
+  # dplyr::filter(rep %in% sample(unique(rep), size = 10),
+  #               .by = id_u0) %>%
   ggplot() +
   aes(t, u, group = rep) +
   # geom_step() +
@@ -289,26 +302,28 @@ ode_results <-
   mutate(u0 = u0[as.integer(id_u0)],
          id_u0 = NULL)
 #TODO
-# p_traj +
-#   # `geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'
-#   geom_smooth(aes(group = NA, color = "smooth")) +
-#   geom_line(aes(color = "ODE", group = id_u0), data = ode_results) +
-#
-#   labs(color = NULL) +
-#   theme(legend.position = "bottom") +
-#   NULL
+p_traj +
+  aes(color = id_u0) +
+  # NULL
+  # `geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'
+  # geom_smooth(aes(group = NA, color = "smooth")) +
+  geom_line(aes(color = u0, group = u0), data = ode_results) +
+
+  labs(color = NULL) +
+  theme(legend.position = "bottom") +
+  NULL
 #'
 results %>%
   dplyr::filter(t<0)
 #'
 results %>%
-  dplyr::filter(id_u0 == 5) %>%
+  # dplyr::filter(id_u0 == 5) %>%
   ggplot() +
   aes(t, u, group = rep) +
   # geom_line(aes(color = identity(u0)), show.legend = TRUE) +
 
   # `geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'
-  geom_smooth(aes(group = id_u0, color = id_u0)) +
+  geom_smooth(aes(group = u0, color = u0)) +
   geom_line(aes(color = u0, group = u0), data = ode_results) +
 
   # scale_color_viridis_c(direction = -1) +
@@ -328,6 +343,7 @@ results %>%
     .by = c(u0)
   ) %>%
   identity() %>%
+  glimpse() %>%
   ggplot() +
   aes(u0, `P(extinction)`) +
   geom_line() +
@@ -339,6 +355,7 @@ results %>%
        x = "u0",
        color = NULL) +
   theme_bw(base_size = 14) +
+  ylim(y = c(0, NA)) +
   NULL
 #'
 #'
