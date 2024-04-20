@@ -1,50 +1,58 @@
 #' #' Culprit: Maya
 #' start <- list(birth = 0.501237376089681, death = 0.480038235542738)
-#' start <- list(birth = 4 * 0.501237376089681, death = 0.480038235542738)
+start <- list(
+  birth = 4 * 0.501237376089681,
+  death = 0.480038235542738)
+start$growth = start$birth - start$death
+start %>% str()
 #'
-#' tibble(
-#'   # N = c(0, 25),
-#'   N = seq.default(0, 25, by = 1),
-#'   K = 12
-#' ) %>%
-#'   mutate(
-#'     birth_naive = start$birth * pmax(0, (1 - N / K)),
-#'     birth_adjust = start$birth * pmax(0, (1 -
-#'                                             (start$birth - start$death) /
-#'                                             (start$birth + start$death) * N / K)),
-#'     death_naive = start$death * pmax(0, (1 + N / K)),
-#'     death_adjust = start$death * pmax(0, (1 +
-#'                                             (start$birth - start$death) /
-#'                                             (start$birth + start$death) * N / K)),
-#'     # death = start$death,
-#'     growth_naive = birth_naive - death_naive,
-#'     growth_adjust = birth_adjust - death_adjust
-#'   ) %>%
-#'   pivot_longer(
-#'     matches("(naive)|(adjust)$"),
-#'     names_pattern = "(\\w+)_(naive|adjust)",
-#'     names_to = c(".value", "method")
-#'   ) %>%
-#'   mutate(method = fct_inorder(method)) %>%
-#'   pivot_longer(c(birth, death, growth)) %>%
-#'   glimpse() %>%
-#'   ggplot() +
-#'   aes(x = N, y = value, group = str_c(method, name)) +
-#'   geom_line(aes(color = name)) +
-#'
-#'   geom_vline(aes(xintercept = K)) +
-#'   geom_hline(aes(yintercept = 0), linetype = "dotted") +
-#'
-#'   facet_grid(~method) +
-#'
-#'   labs(y = "rate", caption = "Carrying capacity at 12") +
-#'
-#'   guides(color = guide_legend(override.aes = list(linewidth = 2))) +
-#'
-#'   labs(color = NULL) +
-#'   theme_bw() +
-#'   theme(legend.position = "bottom") +
-#'   NULL
+tibble(
+  # N = c(0, 25),
+  N = seq.default(0, 25, by = 1),
+  K = 12
+) %>%
+  mutate(
+    # growth_naive = start$growth
+    growth_naive = start$growth * (1 - N / K),
+
+    # birth_naive = start$birth * pmax(0, (1 - N / K)),
+    # birth_adjust = start$birth * pmax(0, (1 -
+    #                                         (start$birth - start$death) /
+    #                                         (start$birth + start$death) * N / K)),
+    # death_naive = start$death * pmax(0, (1 + N / K)),
+    # death_adjust = start$death * pmax(0, (1 +
+    #                                         (start$birth - start$death) /
+    #                                         (start$birth + start$death) * N / K)),
+    # # death = start$death,
+    # growth_naive = birth_naive - death_naive,
+    # growth_adjust = birth_adjust - death_adjust
+  ) %>%
+  pivot_longer(
+    matches("(naive)|(adjust)$"),
+    names_pattern = "(\\w+)_(naive|adjust)",
+    names_to = c(".value", "method")
+  ) %>%
+  mutate(method = fct_inorder(method)) %>%
+  # pivot_longer(c(birth, death, growth)) %>%
+  pivot_longer(c(growth)) %>%
+  glimpse() %>%
+  ggplot() +
+  aes(x = N, y = value, group = str_c(method, name)) +
+  geom_line(aes(color = name)) +
+
+  geom_vline(aes(xintercept = K)) +
+  geom_hline(aes(yintercept = 0), linetype = "dotted") +
+
+  facet_grid(~method) +
+
+  labs(y = "rate", caption = "Carrying capacity at 12") +
+
+  guides(color = guide_legend(override.aes = list(linewidth = 2))) +
+
+  labs(color = NULL) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  NULL
 #'
 #' fs::dir_create("figures")
 #' ggsave(
