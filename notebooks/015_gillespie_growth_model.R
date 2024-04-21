@@ -1,4 +1,11 @@
 #'
+#' Instead of using Gillespie to make a separate Birth and Death process,
+#' I've just unified both into a growth model, where
+#'
+#' growth = growth_0 * (1 - N / K)
+#'
+#' abs(growth) is used as the rate,
+#' and `sign(growth)` is used to figure out if it is +- 1
 #'
 #'
 #'
