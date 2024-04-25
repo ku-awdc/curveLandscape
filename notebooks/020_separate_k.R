@@ -1,11 +1,11 @@
 
 
 birth <- function(N, beta_0, K_beta) {
-  beta_0 / K_beta * pmax(0, (K_beta - N))
+  beta_0 / K_beta * pmax(0, K_beta - N)
 }
 
 death <- function(N, mu_0, K_mu, alpha_mu) {
-  (mu_0/K_mu) * pmax(0, N - K_mu) - alpha_mu * pmin(0, N - K_mu)
+  (mu_0/K_mu) * pmax(0, K_mu - N) + alpha_mu * pmax(0, N - K_mu)
 }
 
 carrying_capacity <- function(beta_0, K_beta, mu_0, K_mu, alpha_mu) {
@@ -21,8 +21,8 @@ tibble(
     mu_0 = 0.5,
     K_beta = 14,
     K_mu = 10,
-    # alpha_mu = 0.1
-    alpha_mu = mu_0 / K_mu
+    alpha_mu = 0.1
+    # alpha_mu = mu_0 / K_mu
   ) %>%
   glimpse() %>%
   mutate(
