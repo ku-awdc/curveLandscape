@@ -42,7 +42,7 @@ tibble(
         aes(xintercept = carrying_capacity)
       ) +
       guides(color = guide_legend(override.aes = list(linewidth=3))) +
-      labs(color = NULL) +
+      labs(color = NULL, y = "rate", x = "N [count]") +
       theme_bw(14) +
       NULL
   }
