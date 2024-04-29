@@ -181,4 +181,46 @@ optim_result$par %>% exp() %>%
 # plot.new()
 plot(sim_data)
 abline(h = par_result["offset"] + par_result["rate"], lw = 2, lty = "dotted")
+par_result
+#'
+#'
+#'
+#' Penalised (?) likelihood.
+#'
+model2$pen_dpois <- function(offset, rate, yi, lambda = 0.01) {
+  model2$loglikelihood_dpois(
+    offset = offset, rate = rate, yi = yi
+  ) - lambda * rate
+}
+optim(
+  par = c(offset = 0.2, rate = 20) %>% log(),
+  \(par, lambda) model2$pen_dpois(yi = sim_data,
+                                  offset = exp(par[1]),
+                                  rate = exp(par[2]),
+                                  lambda = lambda),
+  lambda = 2,
+  control = list(trace = 6)
+) %>%
+  print() -> optim_result
+optim_result$par
+optim_result$par %>% exp() %>%
+  print() -> par_result
+#' Let's just include lambda...
+#'
+#'
+optim(
+  par = c(offset = 0.2, rate = 20, lambda = 0.0001) %>% log(),
+  \(par, lambda) model2$pen_dpois(yi = sim_data,
+                                  offset = exp(par[1]),
+                                  rate = exp(par[2]),
+                                  lambda = exp(par[3])),
+  control = list(trace = 6)
+) %>%
+  print() -> optim_result
+optim_result$par
+optim_result$par %>% exp() %>%
+  print() -> par_result
+#'
+#'
 
+#'
