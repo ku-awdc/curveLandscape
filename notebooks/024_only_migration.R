@@ -161,6 +161,7 @@ repeat {
   next_u <- current_u
   next_u[c(TRUE, FALSE)] <- current_u1 + delta_u
   next_u[c(FALSE, TRUE)] <- current_u2 + (-1) * delta_u
+  current_u
   stopifnot(all(next_u >= 0))
   stopifnot(all(!is.na(delta_u)))
 
