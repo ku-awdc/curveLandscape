@@ -43,8 +43,7 @@ optim(
 )
 
 model$likelihood <-function(data, offset, rate) {
-  -prod(as.numeric(data > offset) *
-          dpois(x = round(data - offset), lambda = rate))
+  -prod(dpois(x = round(data - offset), lambda = rate))
 }
 model$likelihood <- Vectorize(model$likelihood, vectorize.args = c("offset","rate"))
 model$likelihood(sim_data, offset = c(0.2, 1), rate = c(1,0.2))
@@ -101,7 +100,7 @@ optim(
 #'
 #' Turns out, this non-sense doesn't work.
 #'
-model2<-structure(list(), class = "offsetPoisModel")
+model2 <- structure(list(), class = "offsetPoisModel")
 model2$likelihood <- function(offset, rate, yi) {
   prod(exp(-rate) * (rate ** (yi - offset)) / factorial(yi - offset))
 }
@@ -110,7 +109,10 @@ model2$likelihood <- Vectorize(model2$likelihood, vectorize.args = c("offset","r
 # factorial(0.5)
 model2$likelihood(offset = 0.2, rate = 2, yi = sim_data)
 
-
+# optim(
+#   method = "Brent",
+#
+# )
 
 optim(
   par = c(offset = 0.2, rate = 20) %>% log(),
