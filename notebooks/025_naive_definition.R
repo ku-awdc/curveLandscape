@@ -438,6 +438,9 @@ results %>%
     `P(extinction)` = mean(u < 1),
     .by = c(u0)
   ) %>%
+  add_row(
+    u0 = 0, `P(extinction)` = 1
+  ) %>%
   identity() %>%
   glimpse() %>%
   ggplot() +
