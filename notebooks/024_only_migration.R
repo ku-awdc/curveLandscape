@@ -1,6 +1,11 @@
 #'
 #'
 #'
+#' This implements migration (of the first kind)
+#'
+#' m_(ij) = m_0 "kern"("distance"_(ij)") N_j
+#'
+#'
 #'
 rate_to_probability <- function(rate) {
   1 - exp(-rate)
