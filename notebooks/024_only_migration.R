@@ -39,8 +39,9 @@ mu_0 <- death_baseline
 beta_0 <- birth_baseline
 
 # migration baseline
-m_baseline <- 0.2
+m_baseline <- 0.15
 
+dist_01 <- 0.2
 #' Adjustment coefficient
 # (birth_baseline - death_baseline) / (birth_baseline + death_baseline)
 
@@ -61,17 +62,12 @@ reps <- 100
 reps <- 50
 max_t_years <- 25
 
-if (any(k0 > u0)) {
-  warning("Starting population larger than carrying capacity")
-}
-
 # max_t_weeks <- max_t_years * 52
 
 curve(exp(-x), to = 10)
 kern <- function(distance, d0 = 1) {
   exp(-distance / d0)
 }
-dist_01 <- 2
 
 # curve(exp(-x/5), to = 30)
 curve(kern(x), to = 10)
@@ -86,6 +82,11 @@ current_u <- c(u1 = u1, u2 = u2) %>% rep.int(times = reps)
 id_rep <- seq_len(reps)
 current_t <- numeric(length(id_rep))
 
+
+if (any(k0 > current_u)) {
+  warning("Starting population larger than carrying capacity")
+}
+
 # results <- cbind(rep = integer(0), t = numeric(0)) %>%
 #   cbind(u = identity(t(numeric(2))))
 results <- cbind(rep = integer(0), t = numeric(0),
@@ -94,17 +95,10 @@ results <- cbind(rep = integer(0), t = numeric(0),
 results <- rbind(
   results,
   cbind(rep = id_rep, t = current_t,
-        matrix(current_u, ncol = 2, byrow = TRUE,
-               dimnames = list(NULL, c('u1', "u2"))
-        )
+        matrix(current_u, ncol = 2, byrow = TRUE)
   )
 )
 stopifnot(nrow(results) == reps)
-# FIXME: what is this supposed to do?
-# results_info <- list(
-#   u0 = tibble(id_u0 = seq_along(u0) %>% rep.int(reps),
-#               rep = id_rep, u0 = current_u)
-# )
 
 repeat {
 
@@ -130,9 +124,12 @@ repeat {
   current_u1 <- current_u[c(TRUE, FALSE)]
   current_u2 <- current_u[c(FALSE, TRUE)]
   # all_m <- kern(distance = dist_01) * current_0
-  m_common <- m_baseline * kern(distance = dist_01) * (pmax(0, current_u1) + pmax(0,current_u2))
+  m_common <- m_baseline * kern(distance = dist_01) * (current_u1 + current_u2)
   #FIXME: check if any (all?) m_common is zero
   delta_t <- -log(next_unif) / (m_common)
+  stopifnot(
+    length(delta_t) == length(m_common)
+  )
   # what if no-one migrates?
   # delta_t[current_u == k0] <- 0
 
@@ -154,14 +151,16 @@ repeat {
   #           all(birth <= 1), all(death <= 1))
 
   # which direction did the movement occur in?
-  delta_u <- sample.int(n = 2, size = current_n, replace = TRUE)
-  delta_u <- c(-1, 1)[delta_u]
+  delta_u <- rbinom(n = current_n, size = 1,
+                    prob = current_u2 / (current_u1 + current_u2))
+  # 0 => u1, 1 => u2
+  delta_u <- c(-1, 1)[delta_u + 1]
+  # current_u
   # delta_u
-  # -delta_u
   next_u <- current_u
   next_u[c(TRUE, FALSE)] <- current_u1 + delta_u
   next_u[c(FALSE, TRUE)] <- current_u2 + (-1) * delta_u
-  current_u
+  # current_u
   stopifnot(all(next_u >= 0))
   stopifnot(all(!is.na(delta_u)))
 
@@ -172,11 +171,18 @@ repeat {
   # record
   results <- rbind(
     results,
-    cbind(rep = id_rep, t = current_t, u = current_u)
+    cbind(rep = id_rep, t = current_t,
+          u = current_u %>% matrix(byrow = TRUE, ncol = 2))
   )
 
   # retire elapsed trajectories
   elapsed_t <- which(current_t >= max_t_years)
+  elapsed_t_u <- c(
+    2 * elapsed_t - 1,
+    2 * elapsed_t
+  )
+  # elapsed_t <- c(elapsed_t, elapsed_t + 1)
+  # FIXME: it has to be all u in the iteration
   # elapsed_u <- which(current_u == 0)
   elapsed_u <- integer()
   # elapsed_k0 <- which(current_u == k0) # or delta_t == 0
@@ -184,23 +190,32 @@ repeat {
   elapsed_reps <- unique(c(elapsed_t, elapsed_u, elapsed_k0))
 
   if (length(elapsed_reps) > 0) {
-    # message(glue("{length(elapsed_u)}"))
-
-    #add `t_max` to the `elapsed_u` group
-    elapsed_u_and_k0 <- unique(c(elapsed_u, elapsed_k0))
-    current_u
-    results <- rbind(
-      results, cbind(rep = id_rep[elapsed_u_and_k0],
-                     t = rep.int(max_t_years, length(elapsed_u_and_k0)),
-                     u = current_u[elapsed_u_and_k0])
-    )
+    #   # message(glue("{length(elapsed_u)}"))
+    #
+    #   #add `t_max` to the `elapsed_u` group
+    #   # FIXME: this is currently disabled
+    #   elapsed_u_and_k0 <- unique(c(elapsed_u, elapsed_k0))
+    #   elapsed_t_u
+    #   # current_u
+    #   results <- rbind(
+    #     results, cbind(rep = id_rep[elapsed_u_and_k0],
+    #                    t = rep.int(max_t_years, length(elapsed_u_and_k0)),
+    #                    u = current_u[elapsed_u_and_k0] %>%
+    #                      matrix(byrow=TRUE, ncol = 2))
+    #   )
+    # }
 
     # remove the elapsed simulations from consideration
-    current_u <- current_u[-elapsed_reps]
-    current_t <- current_t[-elapsed_reps]
-    id_rep <- id_rep[-elapsed_reps]
+    # current_u <- current_u[-elapsed_reps]
+    # current_t <- current_t[-elapsed_reps]
+    current_u <- current_u[-elapsed_t_u]
+    current_t <- current_t[-elapsed_t]
+    # FIXME:
+    # id_rep <- id_rep[-elapsed_reps]
+    id_rep <- id_rep[-elapsed_t]
   }
-  stopifnot(length(current_u) == length(current_t),
+
+  stopifnot(length(current_u) == 2 * length(current_t),
             length(current_t) == length(id_rep)
   )
   if (length(current_u) == 0) {
@@ -209,20 +224,67 @@ repeat {
 }
 stopifnot(length(id_rep) == 0)
 
+results <-
+  results %>%
+  as_tibble()
+
 # current_t
 # current_u
 # id_rep
-results <- results |>
-  as_tibble() %>%
-  left_join(
-    results_info %>% bind_rows(),
-    by = join_by(rep)
-  )
-u0
+# stop()
+# results <- results |>
+#   as_tibble() %>%
+#   left_join(
+#     results_info %>% bind_rows(),
+#     by = join_by(rep)
+#   )
+# u0
 #'
 #' Cache the result
 fs::dir_create(".cache")
-# results %>% write_rds(".cache/021_results_with_info.RDS")
+results %>% write_rds(".cache/024_results_with_info.RDS")
+
+results
+
+results %>%
+  pivot_longer(c(u1, u2),
+               names_pattern = "u(\\d+)",
+               names_to = "id_u",
+               values_to = "u") %>%
+  identity() %>% {
+    ggplot(.) +
+      aes(t, u, group = str_c(rep, id_u)) +
+      geom_line(
+        aes(color = id_u),
+        alpha = 0.4,
+      ) +
+
+      # APPROACH: Poisson-regression
+      # geom_smooth(aes(group = id_u,
+      #                 color = id_u),
+      #             method = glm,
+      #             method.args = list(family = poisson),
+      #             linetype = "dashed",
+      #             se = FALSE) +
+      # APPROACH: GAM
+      geom_smooth(aes(group = id_u,
+                      color = id_u),
+                  # method = glm,
+                  # method.args = list(family = poisson),
+                  linetype = "dashed",
+                  se = FALSE) +
+
+      geom_vline(aes(xintercept = max_t_years,
+                 color = "max_t"),
+                 linetype = "dotted") +
+
+      theme_bw(base_size = 14) +
+      labs(color = NULL) +
+      theme(legend.position = "bottom") +
+      NULL
+  }
+
+
 
 #'
 #' # glm_results <- glm(
