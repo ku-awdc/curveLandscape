@@ -51,3 +51,9 @@ rsconnect/
 # custom ignores
 figures/*
 .cache/*
+
+### macOS ###
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
