@@ -6,19 +6,15 @@ use extendr_api::prelude::*;
 
 mod linspace;
 mod logspace;
+#[deprecated]
 mod birth_death_discrete;
-
-/// Return string `"Hello world!"` to R.
-/// @export
-#[extendr]
-fn hello_world() -> &'static str {
-    "Hello world!"
-}
+mod simulation;
 
 // Macro to generate exports.
 // This ensures exported functions are registered with R.
 // See corresponding C code in `entrypoint.c`.
 extendr_module! {
     mod curveLandscape;
+    use simulation;
     // fn hello_world;
 }
