@@ -10,5 +10,10 @@
 #' @useDynLib curveLandscape, .registration = TRUE
 NULL
 
+#' Simulates birth, death and migration process of a multi-patch system.
+#' 
+#' 
+sim_bdm <- function() .Call(wrap__sim_bdm)
+
 
 # nolint end
