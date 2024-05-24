@@ -16,5 +16,4 @@ mod simulation;
 extendr_module! {
     mod curveLandscape;
     use simulation;
-    // fn hello_world;
 }
