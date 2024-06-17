@@ -5,39 +5,49 @@ library(magrittr)
 total_n <- 10
 n0 <- 5
 t_max <- 25
+cc <- 7
 
 sim_bdm_result <- sim_bdm(
   n0 = as.integer(n0),
   birth_baseline = 4.,
   death_baseline = 1.,
-  carrying_capacity = 7L,
+  carrying_capacity = cc,
   t_max = t_max
 )
 
-sim_bdm_result |> 
+sim_bdm_result |>
   as_tibble() |>
   ggplot() +
-  aes(time, state) + 
+  aes(time, state) +
   geom_step(show.legend = FALSE) +
   labs(
     y = "number of boars",
   ) +
-  theme_bw()
+  geom_hline(
+    aes(yintercept = cc, color = "cc"),
+    linetype = "dashed"
+  ) +
+  labs(color = NULL) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  NULL
 
 # scenario 1
 n <- c(50, 0, 0, 0)
 cc <- c(10, 20, 5, 15)
 
 Matrix::Matrix(
-  n, nrow = 2, ncol = 2, byrow = FALSE
+  n,
+  nrow = 2, ncol = 2, byrow = FALSE
 )
 Matrix::Matrix(
-  cc, nrow = 2, ncol = 2, byrow = FALSE
+  cc,
+  nrow = 2, ncol = 2, byrow = FALSE
 )
 
 
 sim_bdm(
-  n0 = rep.int(n0, times = total_n) |> 
+  n0 = rep.int(n0, times = total_n) |>
     as.integer(),
   rep.int(4., times = total_n),
   rep.int(1., times = total_n),
