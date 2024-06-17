@@ -3,10 +3,9 @@ use itertools::Itertools;
 use itertools::{izip, repeat_n};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
+#[deprecated = "todo"]
 #[derive(Debug)]
-struct PopConfig {
-    // initial_count: [],
-}
+struct PopConfig {}
 
 #[derive(Debug, IntoRobj)]
 struct Record {
@@ -40,6 +39,8 @@ impl Record {
 /// Simulates birth, death and migration process of a multi-patch system.
 ///
 ///
+/// It is assumed that birth-rate exceeds death-rate.
+///
 #[extendr]
 fn sim_bdm(
     n0: &[i32],
@@ -50,9 +51,10 @@ fn sim_bdm(
 ) -> Record {
     assert_eq!(n0.len(), birth_baseline.len());
     assert_eq!(birth_baseline.len(), death_baseline.len());
+    assert_eq!(death_baseline.len(), carrying_capacity.len());
+
     let n_len = n0.len();
     let mut rng = SmallRng::seed_from_u64(20240506);
-    // let n0: Vec<u32> = n0.iter().map(|&x| x.try_into().unwrap()).collect_vec();
     let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
     let cc =
         as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
@@ -69,13 +71,10 @@ fn sim_bdm(
     // TODO: initial time should be a result of Exp(1), as to have previous time...
     let mut t = 0.0;
 
-    let mut current_year = 0;
-
     // record initial state
     record.add_initial_state(t, n0);
     loop {
         let delta_t: f64 = rng.sample(rand::distributions::Open01);
-        // TODO: calculate birth and death rates according to the density...
 
         let birth = izip!(
             n.iter(),
@@ -119,12 +118,6 @@ fn sim_bdm(
 
         if t >= t_max {
             break;
-        }
-
-        if current_year > t as i32 {
-            println!("just passed {current_year}");
-            dbg!(t, &n, total_propensity, &record);
-            current_year += 1;
         }
 
         // next event
@@ -176,6 +169,95 @@ struct ScenarioRecords {
 
 //     }
 // }
+
+#[extendr]
+fn sim_migration_only(
+    n0: &[i32],
+    migration_baseline: &[f64],
+    carrying_capacity: &[i32],
+    t_max: f64,
+) -> Record {
+    assert_eq!(n0.len(), migration_baseline.len());
+    assert_eq!(migration_baseline.len(), carrying_capacity.len());
+
+    let n_len = n0.len();
+    let mut rng = SmallRng::seed_from_u64(20240506);
+    // let n0: Vec<u32> = n0.iter().map(|&x| x.try_into().unwrap()).collect_vec();
+    let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
+    let cc =
+        as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
+    let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
+
+    // initialize state
+    let mut n: Vec<u32> = Vec::with_capacity(n_len);
+    n.extend_from_slice(n0);
+    assert_eq!(n.len(), n_len);
+    let n = n.as_mut_slice();
+
+    let mut record = Record::new(0);
+
+    // TODO: initial time should be a result of Exp(1), as to have previous time...
+    let mut t = 0.0;
+
+    // record initial state
+    record.add_initial_state(t, n0);
+    loop {
+        let delta_t: f64 = rng.sample(rand::distributions::Open01);
+
+        // TODO: combine the calculation step of both of these in one
+        let death =
+            izip!(n.iter(), cc_double.iter(), migration_baseline.iter()).map(|(&n, &cc, &m0)| {
+                // let n_double = n as f64;
+                // let rate = if n_double > cc {
+                //     mu + (n_double - cc) * (beta - mu) / cc
+                // } else {
+                //     mu
+                // };
+                // assert!(rate.is_sign_positive());
+                // rate * n_double
+            });
+        let propensity = birth.chain(death).collect_vec();
+
+        let total_propensity: f64 = propensity.iter().sum1().unwrap();
+        let delta_t = -delta_t.ln() / total_propensity;
+        assert!(delta_t.is_finite());
+        t += delta_t;
+
+        if t >= t_max {
+            break;
+        }
+
+        // next event
+        let which_event = rand::distributions::WeightedIndex::new(propensity).unwrap();
+        let event = rng.sample(&which_event);
+        // TODO: use `updated_weights` to speed this up.
+        // println!("t = {t}");
+        if event < n_len {
+            // birth
+            n[event] += 1;
+
+            record.time.push(t);
+            record.id_state.push(event);
+            record.state.push(n[event]);
+        } else if event < 2 * n_len {
+            // death
+            let event_idx = event - n_len;
+            assert_ne!(n[event_idx], 0);
+            n[event_idx] -= 1;
+
+            record.time.push(t);
+            record.id_state.push(event_idx);
+            record.state.push(n[event_idx]);
+        }
+        // TODO: what about if any n == 0 ? extinction?
+        if n.iter().all(|&x| x == 0) {
+            println!("terminating because no-one is alive anymore");
+            break;
+        }
+    }
+    // TODO: add an event at `t_max` that is just the repeat of last state
+    record
+}
 
 extendr_module! {
     mod simulation;
