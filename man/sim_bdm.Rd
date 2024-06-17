@@ -4,7 +4,7 @@
 \alias{sim_bdm}
 \title{Simulates birth, death and migration process of a multi-patch system.}
 \usage{
-sim_bdm(n0, birth_baseline, death_baseline, t_max)
+sim_bdm(n0, birth_baseline, death_baseline, carrying_capacity, t_max)
 }
 \description{
 Simulates birth, death and migration process of a multi-patch system.

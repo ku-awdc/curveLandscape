@@ -1,5 +1,7 @@
 devtools::load_all()
 
+library(magrittr)
+
 total_n <- 10
 n0 <- 5
 t_max <- 25
@@ -8,11 +10,19 @@ sim_bdm_result <- sim_bdm(
   n0 = as.integer(n0),
   birth_baseline = 4.,
   death_baseline = 1.,
-  t_max = 5
+  carrying_capacity = 7L,
+  t_max = t_max
 )
 
 sim_bdm_result |> 
-  as_tibble()
+  as_tibble() |>
+  ggplot() +
+  aes(time, state) + 
+  geom_step(show.legend = FALSE) +
+  labs(
+    y = "number of boars",
+  ) +
+  theme_bw()
 
 # scenario 1
 n <- c(50, 0, 0, 0)

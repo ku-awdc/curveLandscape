@@ -41,13 +41,22 @@ impl Record {
 ///
 ///
 #[extendr]
-fn sim_bdm(n0: &[i32], birth_baseline: &[f64], death_baseline: &[f64], t_max: f64) -> Record {
+fn sim_bdm(
+    n0: &[i32],
+    birth_baseline: &[f64],
+    death_baseline: &[f64],
+    carrying_capacity: &[i32],
+    t_max: f64,
+) -> Record {
     assert_eq!(n0.len(), birth_baseline.len());
     assert_eq!(birth_baseline.len(), death_baseline.len());
     let n_len = n0.len();
     let mut rng = SmallRng::seed_from_u64(20240506);
     // let n0: Vec<u32> = n0.iter().map(|&x| x.try_into().unwrap()).collect_vec();
     let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
+    let cc =
+        as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
+    let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
 
     // initialize state
     let mut n: Vec<u32> = Vec::with_capacity(n_len);
@@ -68,11 +77,40 @@ fn sim_bdm(n0: &[i32], birth_baseline: &[f64], death_baseline: &[f64], t_max: f6
         let delta_t: f64 = rng.sample(rand::distributions::Open01);
         // TODO: calculate birth and death rates according to the density...
 
-        let propensity_birth =
-            izip!(birth_baseline.iter(), n.iter()).map(|(&rate, &n)| rate * (n as f64));
-        let propensity_death =
-            izip!(death_baseline.iter(), n.iter()).map(|(&rate, &n)| rate * (n as f64));
-        let propensity = propensity_birth.chain(propensity_death).collect_vec();
+        let birth = izip!(
+            n.iter(),
+            cc_double.iter(),
+            birth_baseline.iter(),
+            death_baseline.iter()
+        )
+        .map(|(&n, &cc, &beta, &mu)| {
+            let n_double = n as f64;
+            let rate = if cc > n_double {
+                mu + (cc - n_double) * (beta - mu) / cc
+            } else {
+                mu
+            };
+            assert!(rate.is_sign_positive());
+            rate * n_double
+        });
+        // TODO: combine the calculation step of both of these in one
+        let death = izip!(
+            n.iter(),
+            cc_double.iter(),
+            birth_baseline.iter(),
+            death_baseline.iter()
+        )
+        .map(|(&n, &cc, &beta, &mu)| {
+            let n_double = n as f64;
+            let rate = if n_double > cc {
+                mu + (n_double - cc) * (beta - mu) / cc
+            } else {
+                mu
+            };
+            assert!(rate.is_sign_positive());
+            rate * n_double
+        });
+        let propensity = birth.chain(death).collect_vec();
 
         let total_propensity: f64 = propensity.iter().sum1().unwrap();
         let delta_t = -delta_t.ln() / total_propensity;
@@ -117,12 +155,7 @@ fn sim_bdm(n0: &[i32], birth_baseline: &[f64], death_baseline: &[f64], t_max: f6
             break;
         }
     }
-    // TODO: add an event at `t_max` that is just the repeat of last staet
-
-    // birth_baseline.iter().sum::<f64>() +
-    // death_baseline.iter().sum::<f64>()
-
-    // n0.iter().map(|x| *x as f64).sum1().unwrap();
+    // TODO: add an event at `t_max` that is just the repeat of last state
     record
 }
 
@@ -168,10 +201,11 @@ mod tests {
         let n0 = [10, 0, 0, 1];
         let birth_baseline = [4., 4., 4., 4.];
         let death_baseline = [1., 1., 1., 1.];
-        let t_max = 25.;
+        // let t_max = 25.;
         let t_max = 5.;
+        let cc = [10, 7, 1, 1];
 
-        let record = sim_bdm(&n0, &birth_baseline, &death_baseline, t_max);
+        let record = sim_bdm(&n0, &birth_baseline, &death_baseline, &cc, t_max);
         // dbg!(record);
     }
 }

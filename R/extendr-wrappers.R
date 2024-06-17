@@ -13,7 +13,7 @@ NULL
 #' Simulates birth, death and migration process of a multi-patch system.
 #'
 #'
-sim_bdm <- function(n0, birth_baseline, death_baseline, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, t_max)
+sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, carrying_capacity, t_max)
 
 
 # nolint end
