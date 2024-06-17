@@ -7,5 +7,5 @@
 sim_bdm(n0, birth_baseline, death_baseline, carrying_capacity, t_max)
 }
 \description{
-Simulates birth, death and migration process of a multi-patch system.
+It is assumed that birth-rate exceeds death-rate.
 }

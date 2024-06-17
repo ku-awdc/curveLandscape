@@ -32,6 +32,13 @@ sim_bdm_result |>
   theme(legend.position = "bottom") +
   NULL
 
+# migration only simulation
+
+sim_migration_only(
+  
+)
+
+
 # scenario 1
 n <- c(50, 0, 0, 0)
 cc <- c(10, 20, 5, 15)

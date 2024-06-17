@@ -145,10 +145,12 @@ fn sim_bdm(
         // TODO: what about if any n == 0 ? extinction?
         if n.iter().all(|&x| x == 0) {
             println!("terminating because no-one is alive anymore");
+
+            // TODO: add an event at `t_max` that is just the repeat of last state
+
             break;
         }
     }
-    // TODO: add an event at `t_max` that is just the repeat of last state
     record
 }
 
@@ -175,6 +177,7 @@ fn sim_migration_only(
     n0: &[i32],
     migration_baseline: &[f64],
     carrying_capacity: &[i32],
+    k_dij: &[f64],
     t_max: f64,
 ) -> Record {
     assert_eq!(n0.len(), migration_baseline.len());
@@ -207,14 +210,12 @@ fn sim_migration_only(
         // TODO: combine the calculation step of both of these in one
         let death =
             izip!(n.iter(), cc_double.iter(), migration_baseline.iter()).map(|(&n, &cc, &m0)| {
-                // let n_double = n as f64;
-                // let rate = if n_double > cc {
-                //     mu + (n_double - cc) * (beta - mu) / cc
-                // } else {
-                //     mu
-                // };
-                // assert!(rate.is_sign_positive());
-                // rate * n_double
+                let n_double = n as f64;
+                let m_rate = m0 * k_dij * (-cc).exp();
+                let rate = m_rate;
+
+                assert!(rate.is_sign_positive());
+                rate * n_double
             });
         let propensity = birth.chain(death).collect_vec();
 
@@ -249,19 +250,21 @@ fn sim_migration_only(
             record.id_state.push(event_idx);
             record.state.push(n[event_idx]);
         }
+
         // TODO: what about if any n == 0 ? extinction?
         if n.iter().all(|&x| x == 0) {
             println!("terminating because no-one is alive anymore");
+            // TODO: add an event at `t_max` that is just the repeat of last state
             break;
         }
     }
-    // TODO: add an event at `t_max` that is just the repeat of last state
     record
 }
 
 extendr_module! {
     mod simulation;
     fn sim_bdm;
+    fn sim_migration_only;
     // fn sim_multiple_bdm;
 }
 
