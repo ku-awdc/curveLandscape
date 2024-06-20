@@ -57,3 +57,6 @@ figures/*
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Maintainer specific
+src/rust/Cargo.lock
