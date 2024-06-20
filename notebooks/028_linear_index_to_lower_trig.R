@@ -64,6 +64,7 @@ triangle_numbers <- \(n) n * (n + 1) / 2
 
 triangle_numbers(0:10)
 
+#' Returns the indices of lower-triangle with diagonal elements
 get_k <- function(n, k) {
   ri <- floor((sqrt(1 + 8 * k) - 1) / 2)
   ci <- k - (ri * (ri + 1) / 2)
@@ -85,5 +86,17 @@ dimnames(mID) <- dim(mID) |>
   lapply(\(x) seq_len(x) - 1)
 mID[] <- str_c(seq_len(prod(dim(mID))), ":", "(", as.numeric(t(t(mXY$Y))), ",", as.numeric(t(t(mXY$X))), ")")
 mID
+
+get_k(5, seq_len(triangle_numbers(5 - 1)) - 1)
+
+#' Returns the indices of lower-triangle with diagonal elements
+get_k_no_diag <- function(n, k) {
+  ri <- floor((sqrt(1 + 8 * k) + 1) / 2)
+  ci <- k - (ri * (ri + 1) / 2)
+  cbind(
+    ri = ri,
+    ci = ci
+  )
+}
 
 get_k(5, seq_len(triangle_numbers(5 - 1)) - 1)
