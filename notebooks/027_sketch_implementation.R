@@ -35,7 +35,6 @@ sim_bdm_result |>
 # migration only simulation
 
 sim_migration_only(
-  
 )
 
 

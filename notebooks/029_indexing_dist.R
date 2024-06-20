@@ -47,3 +47,6 @@ mID[] <- str_c(seq_len(prod(dim(mID))), ":", "(", as.numeric(t(t(mXY$Y))), ",", 
 mID
 Matrix::tril(mXY$X, k = -1, sparse=TRUE)
 Matrix::band()
+
+get_row_col(10, n=3)
+
