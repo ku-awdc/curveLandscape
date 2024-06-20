@@ -19,5 +19,14 @@ sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max
 
 sim_migration_only <- function(n0, migration_baseline, carrying_capacity, m0, k_dij, t_max) .Call(wrap__sim_migration_only, n0, migration_baseline, carrying_capacity, m0, k_dij, t_max)
 
+#' Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
+get_row_col <- function(k, n) .Call(wrap__get_row_col, k, n)
+
+#' Returns the linear, 0-index id for (i,j) for n x n matrix.
+get_linear_id <- function(i, j, n) .Call(wrap__get_linear_id, i, j, n)
+
+#' Return the total number of elements in lower-triangular matrix (without diagonal)
+get_total_number_of_elements <- function(n) .Call(wrap__get_total_number_of_elements, n)
+
 
 # nolint end
