@@ -177,11 +177,13 @@ fn sim_migration_only(
     n0: &[i32],
     migration_baseline: &[f64],
     carrying_capacity: &[i32],
-    k_dij: &[f64],
+    m0: &[f64],
+    k_dij: RMatrix<f64>,
     t_max: f64,
 ) -> Record {
     assert_eq!(n0.len(), migration_baseline.len());
     assert_eq!(migration_baseline.len(), carrying_capacity.len());
+    assert_eq!(carrying_capacity.len(), carrying_capacity.len());
 
     let n_len = n0.len();
     let mut rng = SmallRng::seed_from_u64(20240506);
@@ -207,19 +209,64 @@ fn sim_migration_only(
     loop {
         let delta_t: f64 = rng.sample(rand::distributions::Open01);
 
+        // Equation (1) m0 • k(d_ij) • exp(-cc[source])
+        // Equation (2) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source??]))
+
         // TODO: combine the calculation step of both of these in one
-        let death =
-            izip!(n.iter(), cc_double.iter(), migration_baseline.iter()).map(|(&n, &cc, &m0)| {
-                let n_double = n as f64;
-                let m_rate = m0 * k_dij * (-cc).exp();
-                let rate = m_rate;
+        // let death =
+        //     izip!(n.iter(), cc_double.iter(), migration_baseline.iter()).map(|(&n, &cc, &m0)| {
+        //         let n_double = n as f64;
+        //         let m_rate = m0 * k_dij * (-cc).exp();
+        //         let rate = m_rate;
 
-                assert!(rate.is_sign_positive());
-                rate * n_double
-            });
-        let propensity = birth.chain(death).collect_vec();
+        //         assert!(rate.is_sign_positive());
+        //         rate * n_double
+        //     });
+        // let propensity = birth.chain(death).collect_vec();
+        let (ncols, nrows) = (k_dij.ncols(), k_dij.nrows());
 
-        let total_propensity: f64 = propensity.iter().sum1().unwrap();
+        // Simplifying assumption: k_dij === 1 forall i,j
+
+        // ASSSUMPTION: k_dij is symmetric!
+
+        // dim(k_dij) == dim(migration)
+
+        // k_dij triangle matrix
+
+        // k_dij full matrix
+        let migration_propensity: Vec<_> = k_dij
+            .data()
+            .iter()
+            .enumerate()
+            .map(|(ij, kd_ij)| {
+                let i: usize = todo!();
+                let j: usize = todo!();
+
+                // m_ji: i -> j (emigration)
+                let cc = cc[i] as f64; // cc at source
+                let n_double = n[i] as f64; // n at source
+                let m0 = m0[i];
+
+                let mij_rate = m0 * kd_ij * (-cc).exp();
+                let rateij: f64 = mij_rate * n_double;
+                assert!(rateij.is_sign_positive());
+
+                rateij
+
+                // // m_ij: j -> i (immigration)
+                // let cc = cc[j]; // cc at source
+                // let n_double = n[j] as f64; // n at source
+                // let m0 = m0[j];
+
+                // let mji_rate = m0 * k_dij * (-cc).exp();
+                // let rateji = mji_rate * n_double;
+
+                // assert!(rateji.is_sign_positive());
+                // [rateij, rateji]
+            })
+            .collect();
+
+        let total_propensity: f64 = migration_propensity.iter().sum1().unwrap();
         let delta_t = -delta_t.ln() / total_propensity;
         assert!(delta_t.is_finite());
         t += delta_t;
@@ -229,7 +276,7 @@ fn sim_migration_only(
         }
 
         // next event
-        let which_event = rand::distributions::WeightedIndex::new(propensity).unwrap();
+        let which_event = rand::distributions::WeightedIndex::new(migration_propensity).unwrap();
         let event = rng.sample(&which_event);
         // TODO: use `updated_weights` to speed this up.
         // println!("t = {t}");
