@@ -18,6 +18,9 @@ rand = { version = "0.8", features = ["small_rng"] }
 rand_distr = "0.4"
 readonly = "0.2"
 
+[dev-dependencies]
+extendr-engine = { git = "https://github.com/extendr/extendr.git" }
+
 [features]
 default = ["std"]
 std = ["num-traits/std"]
