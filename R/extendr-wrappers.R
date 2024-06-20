@@ -17,5 +17,7 @@ NULL
 #'
 sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, carrying_capacity, t_max)
 
+sim_migration_only <- function(n0, migration_baseline, carrying_capacity, m0, k_dij, t_max) .Call(wrap__sim_migration_only, n0, migration_baseline, carrying_capacity, m0, k_dij, t_max)
+
 
 # nolint end
