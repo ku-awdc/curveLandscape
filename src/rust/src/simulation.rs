@@ -332,20 +332,19 @@ fn as_u32(integer: &[i32]) -> Option<&[u32]> {
 #[extendr]
 /// Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
 fn get_row_col(k: usize, n: usize) -> [usize; 2] {
-    let mut j = 0;
-    let mut sum = 0;
-    while sum + n - j - 1 <= k {
-        sum += n - j - 1;
-        j += 1;
-    }
-    let i = k - sum + j + 1;
+    let j = ((1 + 8 * k) as f64).sqrt() - 1.;
+    let j = j as usize;
+    let j = j / 2;
+    let i = k - j * (j + 1) / 2 + j + 1;
+
     [i, j]
 }
 
 #[extendr]
 /// Returns the linear, 0-index id for (i,j) for n x n matrix.
 fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
-    j * (n - 1) - j * (j + 1) / 2 + i - j - 1
+    // j * (n - 1) - j * (j + 1) / 2 + i - j - 1
+    j * (j + 1) / 2 + (i - j - 1)
 }
 
 #[extendr]
