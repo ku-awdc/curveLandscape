@@ -313,6 +313,11 @@ extendr_module! {
     fn sim_bdm;
     fn sim_migration_only;
     // fn sim_multiple_bdm;
+
+    // internal functions, remove eventually
+    fn get_row_col;
+    fn get_linear_id;
+    fn get_total_number_of_elements;
 }
 
 /// Checks if all elements of `integer` are non-negative, thus returns a transmuted unsigned integer slice back.
@@ -324,8 +329,33 @@ fn as_u32(integer: &[i32]) -> Option<&[u32]> {
     Some(unsafe { std::mem::transmute(integer) })
 }
 
+#[extendr]
+/// Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
+fn get_row_col(k: usize, n: usize) -> [usize; 2] {
+    let kkk = 2 * k + 1;
+    let j = (((kkk.pow(2) + 8 * k * (n + 1)) as f64).sqrt() - kkk as f64) as usize;
+    let j = j / (2 * (n + 1));
+    let i = k - j * (n - (j + 1) / 2) + j + 1;
+    [i, j]
+}
+
+#[extendr]
+/// Returns the linear, 0-index id for (i,j) for n x n matrix.
+fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
+    j * (n - 1) - j * (j + 1) / 2 + i - j - 1
+}
+
+#[extendr]
+/// Return the total number of elements in lower-triangular matrix (without diagonal)
+fn get_total_number_of_elements(n: usize) -> usize {
+    // FIXME: make safe when n = 0
+    n * (n - 1) / 2 - 1
+}
+
 #[cfg(test)]
 mod tests {
+    use extendr_engine::with_r;
+
     use super::*;
 
     #[test]
@@ -339,5 +369,10 @@ mod tests {
 
         let record = sim_bdm(&n0, &birth_baseline, &death_baseline, &cc, t_max);
         // dbg!(record);
+    }
+
+    #[test]
+    fn test_indexing() {
+        with_r(|| {});
     }
 }
