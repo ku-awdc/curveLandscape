@@ -332,11 +332,8 @@ fn as_u32(integer: &[i32]) -> Option<&[u32]> {
 #[extendr]
 /// Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
 fn get_row_col(k: usize, n: usize) -> [usize; 2] {
-    let j = ((1 + 8 * k) as f64).sqrt() - 1.;
-    let j = j as usize;
-    let j = j / 2;
-    let i = k - j * (j + 1) / 2 + j + 1;
-
+    let j = (((n - 1).pow(2) - 2 * k) as f64).sqrt() as usize - n + 1;
+    todo!();
     [i, j]
 }
 
@@ -376,5 +373,19 @@ mod tests {
     #[test]
     fn test_indexing() {
         with_r(|| {});
+    }
+
+    #[test]
+    fn tri_u_index() {
+        // n = 2
+        assert_eq!(get_row_col(0, 2), [1, 0]);
+
+        // n = 3
+        let ij = get_row_col(0, 3);
+        assert_eq!(ij, [1, 0]);
+        let ij = get_row_col(1, 3);
+        assert_eq!(ij, [2, 0]);
+        let ij = get_row_col(2, 3);
+        assert_eq!(ij, [2, 1]);
     }
 }
