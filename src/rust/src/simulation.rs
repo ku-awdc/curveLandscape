@@ -1,6 +1,7 @@
 use extendr_api::{prelude::*, IntoRobj};
 use itertools::Itertools;
 use itertools::{izip, repeat_n};
+use rand::distributions::WeightedIndex;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 #[deprecated = "todo"]
@@ -121,7 +122,7 @@ fn sim_bdm(
         }
 
         // next event
-        let which_event = rand::distributions::WeightedIndex::new(propensity).unwrap();
+        let which_event = WeightedIndex::new(propensity).unwrap();
         let event = rng.sample(&which_event);
         // TODO: use `updated_weights` to speed this up.
         // println!("t = {t}");
@@ -177,23 +178,25 @@ fn sim_migration_only(
     n0: &[i32],
     migration_baseline: &[f64],
     carrying_capacity: &[i32],
-    m0: &[f64],
-    k_dij: RMatrix<f64>,
+    k_dij: &[f64],
     t_max: f64,
 ) -> Record {
+    let n_len = n0.len();
     // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
-    assert_eq!(n0.len(), migration_baseline.len());
+    assert_eq!(n_len, migration_baseline.len());
     assert_eq!(migration_baseline.len(), carrying_capacity.len());
     assert_eq!(carrying_capacity.len(), carrying_capacity.len());
 
-    let n_len = n0.len();
+    // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
+    assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
+
     let mut rng = SmallRng::seed_from_u64(20240506);
     // let n0: Vec<u32> = n0.iter().map(|&x| x.try_into().unwrap()).collect_vec();
     let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
     let cc =
         as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
     let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
-
+    dbg!(&cc_double, &cc);
     // initialize state
     let mut n: Vec<u32> = Vec::with_capacity(n_len);
     n.extend_from_slice(n0);
@@ -207,67 +210,49 @@ fn sim_migration_only(
 
     // record initial state
     record.add_initial_state(t, n0);
+
+    //TODO: make them into slices?
+    let mut emigration = vec![0.; k_dij.len()];
+    let mut emigration = emigration.as_mut_slice();
+    let mut immigration = vec![0.; k_dij.len()];
+    let mut immigration = immigration.as_mut_slice();
     loop {
         let delta_t: f64 = rng.sample(rand::distributions::Open01);
 
         // Equation (1) m0 • k(d_ij) • exp(-cc[source])
         // Equation (2) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source??]))
 
-        // TODO: combine the calculation step of both of these in one
-        // let death =
-        //     izip!(n.iter(), cc_double.iter(), migration_baseline.iter()).map(|(&n, &cc, &m0)| {
-        //         let n_double = n as f64;
-        //         let m_rate = m0 * k_dij * (-cc).exp();
-        //         let rate = m_rate;
+        let mut total_propensity: f64 = 0.;
+        let mut emigration_propensity: f64 = 0.;
+        let mut immigration_propensity: f64 = 0.;
+        for k in 0..k_dij.len() {
+            let [i, j] = get_row_col(k, n_len);
+            // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
+            let equation_1_ji = migration_baseline[i] * k_dij[k] * (-cc_double[i]).exp();
+            let equation_1_ij = migration_baseline[j] * k_dij[k] * (-cc_double[j]).exp();
+            // let equation_1_ji = migration_baseline[i] * k_dij[k] / cc_double[i];
+            // let equation_1_ij = migration_baseline[j] * k_dij[k] / cc_double[j];
 
-        //         assert!(rate.is_sign_positive());
-        //         rate * n_double
-        //     });
-        // let propensity = birth.chain(death).collect_vec();
-        let (ncols, nrows) = (k_dij.ncols(), k_dij.nrows());
+            let rate_equation_1_ji = equation_1_ji * n[i] as f64;
+            let rate_equation_1_ij = equation_1_ij * n[j] as f64;
+            //TODO: test if they are sign positive?
 
-        // Simplifying assumption: k_dij === 1 forall i,j
+            emigration[k] = rate_equation_1_ji;
+            immigration[k] = rate_equation_1_ij;
 
-        // ASSSUMPTION: k_dij is symmetric!
+            emigration_propensity += rate_equation_1_ji;
+            immigration_propensity += rate_equation_1_ij;
 
-        // dim(k_dij) == dim(migration)
+            total_propensity += rate_equation_1_ji + rate_equation_1_ij;
 
-        // k_dij triangle matrix
+            // TODO: add equation_2_ij, equation_2_ji
+        }
+        let total_propensity = total_propensity;
+        let emigration_propensity = emigration_propensity;
+        let immigration_propensity = immigration_propensity;
 
-        // k_dij full matrix
-        let migration_propensity: Vec<_> = k_dij
-            .data()
-            .iter()
-            .enumerate()
-            .map(|(ij, kd_ij)| {
-                let i: usize = todo!();
-                let j: usize = todo!();
-
-                // m_ji: i -> j (emigration)
-                let cc = cc[i] as f64; // cc at source
-                let n_double = n[i] as f64; // n at source
-                let m0 = m0[i];
-
-                let mij_rate = m0 * kd_ij * (-cc).exp();
-                let rateij: f64 = mij_rate * n_double;
-                assert!(rateij.is_sign_positive());
-
-                rateij
-
-                // // m_ij: j -> i (immigration)
-                // let cc = cc[j]; // cc at source
-                // let n_double = n[j] as f64; // n at source
-                // let m0 = m0[j];
-
-                // let mji_rate = m0 * k_dij * (-cc).exp();
-                // let rateji = mji_rate * n_double;
-
-                // assert!(rateji.is_sign_positive());
-                // [rateij, rateji]
-            })
-            .collect();
-
-        let total_propensity: f64 = migration_propensity.iter().sum1().unwrap();
+        // dbg!(total_propensity);
+        // dbg!(&immigration, &emigration, total_propensity);
         let delta_t = -delta_t.ln() / total_propensity;
         assert!(delta_t.is_finite());
         t += delta_t;
@@ -277,34 +262,39 @@ fn sim_migration_only(
         }
 
         // next event
-        let which_event = rand::distributions::WeightedIndex::new(migration_propensity).unwrap();
-        let event = rng.sample(&which_event);
+        let which_component =
+            WeightedIndex::new([emigration_propensity, immigration_propensity]).unwrap();
+        let which_component = rng.sample(&which_component);
+
+        let current_component_propensity = if which_component == 0 {
+            // emigration
+            emigration.as_ref()
+        } else {
+            // immigration
+            immigration.as_ref()
+        };
+        let which_k = WeightedIndex::new(current_component_propensity).unwrap();
+        let which_k = rng.sample(&which_k);
+
+        let [source, target] = if which_component == 0 {
+            // emigration
+            let [i, j] = get_row_col(which_k, n_len);
+            [i, j]
+        } else {
+            // immigration
+            let [i, j] = get_row_col(which_k, n_len);
+            [j, i]
+        };
+
         // TODO: use `updated_weights` to speed this up.
-        // println!("t = {t}");
-        if event < n_len {
-            // birth
-            n[event] += 1;
-
-            record.time.push(t);
-            record.id_state.push(event);
-            record.state.push(n[event]);
-        } else if event < 2 * n_len {
-            // death
-            let event_idx = event - n_len;
-            assert_ne!(n[event_idx], 0);
-            n[event_idx] -= 1;
-
-            record.time.push(t);
-            record.id_state.push(event_idx);
-            record.state.push(n[event_idx]);
-        }
-
-        // TODO: what about if any n == 0 ? extinction?
-        if n.iter().all(|&x| x == 0) {
-            println!("terminating because no-one is alive anymore");
-            // TODO: add an event at `t_max` that is just the repeat of last state
-            break;
-        }
+        n[source] -= 1;
+        n[target] += 1;
+        record.time.push(t);
+        record.time.push(t);
+        record.id_state.push(source);
+        record.state.push(n[source]);
+        record.id_state.push(target);
+        record.state.push(n[target]);
     }
     record
 }
@@ -351,9 +341,7 @@ fn get_row_col(k: usize, n: usize) -> [usize; 2] {
 #[extendr]
 /// Returns the linear, 0-index id for (i,j) for n x n matrix.
 fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
-    // j * (n - 1) - j * (j + 1) / 2 + i - j - 1
-    // j * (j + 1) / 2 + (i - j - 1)
-    todo!()
+    n * (n - 1) / 2 - (n - j + 1) * (n - j) / 2 + (i - j - 1)
 }
 
 #[extendr]
@@ -399,5 +387,23 @@ mod tests {
         assert_eq!(ij, [2, 0]);
         let ij = get_row_col(2, 3);
         assert_eq!(ij, [2, 1]);
+
+        //TODO: make tests
+        // index_to_i_j_colwise_nodiag(1 - 1, 4) # 1 0
+        // index_to_i_j_colwise_nodiag(2 - 1, 4) # 2 0
+        // index_to_i_j_colwise_nodiag(3 - 1, 4) # 3 0
+        // index_to_i_j_colwise_nodiag(4 - 1, 4) # 2 1
+        // index_to_i_j_colwise_nodiag(5 - 1, 4) # 3 1
+        // index_to_i_j_colwise_nodiag(6 - 1, 4) # 3 2
+    }
+    #[test]
+    fn test_sim_migration_only() {
+        let n0 = [10, 2];
+        let migration_baseline = [0.1, 0.0001];
+        let carrying_capacity = [5, 5];
+        let k_dij = [1.];
+        let t_max = 100000.;
+
+        sim_migration_only(&n0, &migration_baseline, &carrying_capacity, &k_dij, t_max);
     }
 }
