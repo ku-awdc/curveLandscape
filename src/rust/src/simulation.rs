@@ -181,6 +181,7 @@ fn sim_migration_only(
     k_dij: RMatrix<f64>,
     t_max: f64,
 ) -> Record {
+    // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
     assert_eq!(n0.len(), migration_baseline.len());
     assert_eq!(migration_baseline.len(), carrying_capacity.len());
     assert_eq!(carrying_capacity.len(), carrying_capacity.len());
@@ -197,7 +198,7 @@ fn sim_migration_only(
     let mut n: Vec<u32> = Vec::with_capacity(n_len);
     n.extend_from_slice(n0);
     assert_eq!(n.len(), n_len);
-    let n = n.as_mut_slice();
+    let n = n.as_mut_slice(); // state variable
 
     let mut record = Record::new(0);
 
@@ -332,23 +333,34 @@ fn as_u32(integer: &[i32]) -> Option<&[u32]> {
 #[extendr]
 /// Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
 fn get_row_col(k: usize, n: usize) -> [usize; 2] {
-    let j = (((n - 1).pow(2) - 2 * k) as f64).sqrt() as usize - n + 1;
-    todo!();
-    [i, j]
+    // let j = (((n - 1).pow(2) - 2 * k) as f64).sqrt() as usize - n + 1;
+    // todo!();
+
+    // kp := k_max - k
+
+    let kp = (n * (n - 1)) / 2 - 1 - k;
+    let kp = kp as f64;
+    let p = (((1. + 8. * kp).sqrt() - 1.) / 2.).floor();
+    let n_float = n as f64;
+    let i = n_float - (kp - p * (p + 1.) / 2.) - 1.;
+    let j = n_float - p - 2.;
+    //   cbind(i = i, j = j, k = k, kp = kp, p = p)
+    [i as _, j as _]
 }
 
 #[extendr]
 /// Returns the linear, 0-index id for (i,j) for n x n matrix.
 fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
     // j * (n - 1) - j * (j + 1) / 2 + i - j - 1
-    j * (j + 1) / 2 + (i - j - 1)
+    // j * (j + 1) / 2 + (i - j - 1)
+    todo!()
 }
 
 #[extendr]
 /// Return the total number of elements in lower-triangular matrix (without diagonal)
 fn get_total_number_of_elements(n: usize) -> usize {
     // FIXME: make safe when n = 0
-    n * (n - 1) / 2 - 1
+    n * (n - 1) / 2
 }
 
 #[cfg(test)]
