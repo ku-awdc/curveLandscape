@@ -173,6 +173,7 @@ struct ScenarioRecords {
 //     }
 // }
 
+/// Perform only simulation with migration, no birth/death feedback
 #[extendr]
 fn sim_migration_only(
     n0: &[i32],
@@ -213,9 +214,9 @@ fn sim_migration_only(
 
     //TODO: make them into slices?
     let mut emigration = vec![0.; k_dij.len()];
-    let mut emigration = emigration.as_mut_slice();
+    let emigration = emigration.as_mut_slice();
     let mut immigration = vec![0.; k_dij.len()];
-    let mut immigration = immigration.as_mut_slice();
+    let immigration = immigration.as_mut_slice();
     loop {
         let delta_t: f64 = rng.sample(rand::distributions::Open01);
 
@@ -262,6 +263,7 @@ fn sim_migration_only(
         }
 
         // next event
+        // TODO: use `updated_weights` to speed this up.
         let which_component =
             WeightedIndex::new([emigration_propensity, immigration_propensity]).unwrap();
         let which_component = rng.sample(&which_component);
@@ -273,6 +275,7 @@ fn sim_migration_only(
             // immigration
             immigration.as_ref()
         };
+        // TODO: use `updated_weights` to speed this up.
         let which_k = WeightedIndex::new(current_component_propensity).unwrap();
         let which_k = rng.sample(&which_k);
 
@@ -286,7 +289,6 @@ fn sim_migration_only(
             [j, i]
         };
 
-        // TODO: use `updated_weights` to speed this up.
         n[source] -= 1;
         n[target] += 1;
         record.time.push(t);

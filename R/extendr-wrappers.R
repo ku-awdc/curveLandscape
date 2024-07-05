@@ -17,6 +17,7 @@ NULL
 #'
 sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, carrying_capacity, t_max)
 
+#' Perform only simulation with migration, no birth/death feedback
 sim_migration_only <- function(n0, migration_baseline, carrying_capacity, k_dij, t_max) .Call(wrap__sim_migration_only, n0, migration_baseline, carrying_capacity, k_dij, t_max)
 
 #' Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
