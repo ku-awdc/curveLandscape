@@ -20,6 +20,27 @@ sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max
 #' Perform only simulation with migration, no birth/death feedback
 sim_migration_only <- function(n0, migration_baseline, carrying_capacity, k_dij, t_max) .Call(wrap__sim_migration_only, n0, migration_baseline, carrying_capacity, k_dij, t_max)
 
+#' Updates the population state vector according to the migration equation
+#'
+#' (CURRENT) Equation (1 - exp) m0 • k(d_ij) • exp(-cc[source])
+#' (MISSING) Equation (1 - div) m0 • k(d_ij) / cc[source]
+#' (MISSING) Equation (2 - exp) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source]))
+#' (MISSING) Equation (2 - div) m0 • k(d_ij) n[source] / (cc[source]) • cc[target])
+#'
+#'
+update_migration_only <- function(population_total, migration_baseline, carrying_capacity, k_dij) invisible(.Call(wrap__update_migration_only, population_total, migration_baseline, carrying_capacity, k_dij))
+
+#' Updates the population state vector according to the migration equation together with
+#' density-dependent birth-death.
+#'
+#' (CURRENT) Equation (1 - exp) m0 • k(d_ij) • exp(-cc[source])
+#' (MISSING) Equation (1 - div) m0 • k(d_ij) / cc[source]
+#' (MISSING) Equation (2 - exp) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source]))
+#' (MISSING) Equation (2 - div) m0 • k(d_ij) n[source] / (cc[source]) • cc[target])
+#'
+#'
+update_birth_death_and_migration <- function(population_total, birth, death, migration_baseline, carrying_capacity, k_dij) invisible(.Call(wrap__update_birth_death_and_migration, population_total, birth, death, migration_baseline, carrying_capacity, k_dij))
+
 #' Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
 get_row_col <- function(k, n) .Call(wrap__get_row_col, k, n)
 

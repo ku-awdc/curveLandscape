@@ -301,16 +301,86 @@ fn sim_migration_only(
     record
 }
 
-extendr_module! {
-    mod simulation;
-    fn sim_bdm;
-    fn sim_migration_only;
-    // fn sim_multiple_bdm;
+/// Updates the population state vector according to the migration equation
+///
+/// (CURRENT) Equation (1 - exp) m0 • k(d_ij) • exp(-cc[source])
+/// (MISSING) Equation (1 - div) m0 • k(d_ij) / cc[source]
+/// (MISSING) Equation (2 - exp) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source]))
+/// (MISSING) Equation (2 - div) m0 • k(d_ij) n[source] / (cc[source]) • cc[target])
+///
+///
+#[extendr]
+fn update_migration_only(
+    population_total: &mut [f64],
+    migration_baseline: &[f64],
+    // carrying_capacity: &[i32],
+    carrying_capacity: &[f64],
+    k_dij: &[f64],
+) {
+    let n_len = population_total.len();
+    let n_current = population_total.to_owned();
+    let n_current: &[f64] = n_current.as_ref();
 
-    // internal functions, remove eventually
-    fn get_row_col;
-    fn get_linear_id;
-    fn get_total_number_of_elements;
+    for k in 0..k_dij.len() {
+        let [i, j] = get_row_col(k, n_len);
+        // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
+        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
+        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
+        let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
+        let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
+
+        let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
+        let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
+        //TODO: test if they are sign positive?
+        population_total[i] = rate_equation_1_ij - rate_equation_1_ji;
+        population_total[j] = rate_equation_1_ji - rate_equation_1_ij;
+    }
+}
+
+/// Updates the population state vector according to the migration equation together with
+/// density-dependent birth-death.
+///
+/// (CURRENT) Equation (1 - exp) m0 • k(d_ij) • exp(-cc[source])
+/// (MISSING) Equation (1 - div) m0 • k(d_ij) / cc[source]
+/// (MISSING) Equation (2 - exp) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source]))
+/// (MISSING) Equation (2 - div) m0 • k(d_ij) n[source] / (cc[source]) • cc[target])
+///
+///
+#[extendr]
+fn update_birth_death_and_migration(
+    population_total: &mut [f64],
+    birth: f64,
+    death: f64,
+    migration_baseline: &[f64],
+    // carrying_capacity: &[i32],
+    carrying_capacity: &[f64],
+    k_dij: &[f64],
+) {
+    let n_len = population_total.len();
+    let n_current = population_total.to_owned();
+    let n_current: &[f64] = n_current.as_ref();
+
+    for k in 0..k_dij.len() {
+        let [i, j] = get_row_col(k, n_len);
+        // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
+        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
+        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
+        let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
+        let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
+
+        let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
+        let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
+        //TODO: test if they are sign positive?
+        population_total[i] = rate_equation_1_ij - rate_equation_1_ji;
+        population_total[j] = rate_equation_1_ji - rate_equation_1_ij;
+    }
+
+    // after migration, apply birth/death dynamics.
+    let growth_rate: f64 = birth - death;
+    for i in 0..n_len {
+        population_total[i] +=
+            n_current[i] * growth_rate * (1. - n_current[i] / carrying_capacity[i]);
+    }
 }
 
 /// Checks if all elements of `integer` are non-negative, thus returns a transmuted unsigned integer slice back.
@@ -351,6 +421,23 @@ fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
 fn get_total_number_of_elements(n: usize) -> usize {
     // FIXME: make safe when n = 0
     n * (n - 1) / 2
+}
+
+extendr_module! {
+    mod simulation;
+    // Gillespie approach
+    fn sim_bdm;
+    fn sim_migration_only;
+    // fn sim_multiple_bdm;
+
+    // ODE approach
+    fn update_migration_only;
+    fn update_birth_death_and_migration;
+
+    // internal functions, remove eventually
+    fn get_row_col;
+    fn get_linear_id;
+    fn get_total_number_of_elements;
 }
 
 #[cfg(test)]
