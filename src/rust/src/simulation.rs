@@ -374,12 +374,13 @@ fn update_birth_death_and_migration(
         population_total[i] = rate_equation_1_ij - rate_equation_1_ji;
         population_total[j] = rate_equation_1_ji - rate_equation_1_ij;
     }
+    let _ = n_current;
 
     // after migration, apply birth/death dynamics.
     let growth_rate: f64 = birth - death;
     for i in 0..n_len {
         population_total[i] +=
-            n_current[i] * growth_rate * (1. - n_current[i] / carrying_capacity[i]);
+            population_total[i] * growth_rate * (1. - population_total[i] / carrying_capacity[i]);
     }
 }
 
