@@ -313,7 +313,6 @@ fn sim_migration_only(
 fn update_migration_only(
     population_total: &mut [f64],
     migration_baseline: &[f64],
-    // carrying_capacity: &[i32],
     carrying_capacity: &[f64],
     k_dij: &[f64],
 ) {
@@ -321,19 +320,24 @@ fn update_migration_only(
     let n_current = population_total.to_owned();
     let n_current: &[f64] = n_current.as_ref();
 
+    population_total.fill(0.);
     for k in 0..k_dij.len() {
         let [i, j] = get_row_col(k, n_len);
         // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
         // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
         // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
-        let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
-        let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
+
+        // verified!
+        // let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
+        // let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
+        let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
+        let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
 
         let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
         let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
         //TODO: test if they are sign positive?
-        population_total[i] = rate_equation_1_ij - rate_equation_1_ji;
-        population_total[j] = rate_equation_1_ji - rate_equation_1_ij;
+        population_total[i] += rate_equation_1_ij - rate_equation_1_ji;
+        population_total[j] += rate_equation_1_ji - rate_equation_1_ij;
     }
 }
 
@@ -357,24 +361,13 @@ fn update_birth_death_and_migration(
     k_dij: &[f64],
 ) {
     let n_len = population_total.len();
-    let n_current = population_total.to_owned();
-    let n_current: &[f64] = n_current.as_ref();
 
-    for k in 0..k_dij.len() {
-        let [i, j] = get_row_col(k, n_len);
-        // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
-        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
-        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
-        let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
-        let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
-
-        let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
-        let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
-        //TODO: test if they are sign positive?
-        population_total[i] = rate_equation_1_ij - rate_equation_1_ji;
-        population_total[j] = rate_equation_1_ji - rate_equation_1_ij;
-    }
-    let _ = n_current;
+    update_migration_only(
+        population_total,
+        migration_baseline,
+        carrying_capacity,
+        k_dij,
+    );
 
     // after migration, apply birth/death dynamics.
     let growth_rate: f64 = birth - death;
