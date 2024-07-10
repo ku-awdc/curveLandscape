@@ -4,10 +4,10 @@
 
 use extendr_api::prelude::*;
 
-mod linspace;
-mod logspace;
 #[deprecated]
 mod birth_death_discrete;
+mod linspace;
+mod logspace;
 mod simulation;
 
 // Macro to generate exports.
