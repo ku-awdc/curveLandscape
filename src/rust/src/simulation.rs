@@ -186,7 +186,6 @@ fn sim_migration_only(
     // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
     assert_eq!(n_len, migration_baseline.len());
     assert_eq!(migration_baseline.len(), carrying_capacity.len());
-    assert_eq!(carrying_capacity.len(), carrying_capacity.len());
 
     // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
     assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
@@ -319,6 +318,9 @@ fn update_migration_only(
     let n_len = population_total.len();
     // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
     assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
+    // assume: |vec(n)| = |vec(m0)| = |vec(cc)|
+    assert_eq!(n_len, migration_baseline.len());
+    assert_eq!(migration_baseline.len(), carrying_capacity.len());
 
     // rprintln!("before migration {:?}", population_total);
     let n_current = population_total.to_owned();
@@ -371,6 +373,9 @@ fn update_birth_death_and_migration(
     k_dij: &[f64],
 ) {
     let n_len = population_total.len();
+    // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
+    assert_eq!(n_len, migration_baseline.len());
+    assert_eq!(migration_baseline.len(), carrying_capacity.len());
     // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
     assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
 
@@ -390,9 +395,6 @@ fn update_birth_death_and_migration(
         // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
         // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
 
-        // for debug purpose
-        // let equation_1_ji = migration_baseline[i];
-        // let equation_1_ij = migration_baseline[j];
         let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
         let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
 
@@ -402,9 +404,7 @@ fn update_birth_death_and_migration(
 
     // after migration, apply birth/death dynamics.
     let growth_rate: f64 = birth - death;
-    // rprintln!("growth_rate: {growth_rate}");
     for i in 0..n_len {
-        // rprintln!("before {}", population_total[i]);
         population_total[i] +=
             n_current[i] * growth_rate * (1. - n_current[i] / carrying_capacity[i]);
     }
@@ -440,7 +440,7 @@ fn get_row_col(k: usize, n: usize) -> [usize; 2] {
 #[extendr]
 /// Returns the linear, 0-index id for (i,j) for n x n matrix.
 fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
-    n * (n - 1) / 2 - (n - j + 1) * (n - j) / 2 + (i - j - 1)
+    (n * (n - 1) - (n - j) * (n - j - 1)) / 2 + i - j - 1
 }
 
 #[extendr]
@@ -512,6 +512,29 @@ mod tests {
         // index_to_i_j_colwise_nodiag(5 - 1, 4) # 3 1
         // index_to_i_j_colwise_nodiag(6 - 1, 4) # 3 2
     }
+
+    #[test]
+    fn test_triangular_index_and_back() {
+        let n = 5;
+        // dbg!(n);
+        for k in 0..get_total_number_of_elements(n) {
+            let [i, j] = get_row_col(k, n);
+            // dbg!(i, j);
+            let kk = get_linear_id(i, j, n);
+            // dbg!(k, kk);
+            assert_eq!(kk, k);
+        }
+
+        // for a few n
+        for n in [2, 3, 4, 5, 6, 7, 8] {
+            for k in 0..get_total_number_of_elements(n) {
+                let [i, j] = get_row_col(k, n);
+                let kk = get_linear_id(i, j, n);
+                assert_eq!(kk, k);
+            }
+        }
+    }
+
     #[test]
     fn test_sim_migration_only() {
         let n0 = [10, 2];
