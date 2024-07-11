@@ -322,14 +322,12 @@ fn update_migration_only(
     assert_eq!(n_len, migration_baseline.len());
     assert_eq!(migration_baseline.len(), carrying_capacity.len());
 
-    // rprintln!("before migration {:?}", population_total);
     let n_current = population_total.to_owned();
     let n_current: &[f64] = n_current.as_ref();
 
     population_total.fill(0.);
     for k in 0..k_dij.len() {
         let [i, j] = get_row_col(k, n_len);
-        rprintln!("(i,j) = ({},{})", i, j);
         // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
         // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
         // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
@@ -349,8 +347,6 @@ fn update_migration_only(
         population_total[i] += rate_equation_1_ij - rate_equation_1_ji;
         population_total[j] += rate_equation_1_ji - rate_equation_1_ij;
     }
-
-    // rprintln!("after migration {:?}", population_total);
 }
 
 /// Updates the population state vector according to the migration equation together with
@@ -433,7 +429,6 @@ fn get_row_col(k: usize, n: usize) -> [usize; 2] {
     let n_float = n as f64;
     let i = n_float - (kp - p * (p + 1.) / 2.) - 1.;
     let j = n_float - p - 2.;
-    //   cbind(i = i, j = j, k = k, kp = kp, p = p)
     [i as _, j as _]
 }
 
@@ -513,6 +508,8 @@ mod tests {
         // index_to_i_j_colwise_nodiag(6 - 1, 4) # 3 2
     }
 
+    /// if this test passes, we know atleast that get_row_col and get_linear_id are consistent with
+    /// each other.
     #[test]
     fn test_triangular_index_and_back() {
         let n = 5;

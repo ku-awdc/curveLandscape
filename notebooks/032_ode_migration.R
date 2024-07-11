@@ -3,8 +3,17 @@ devtools::load_all()
 library(deSolve)
 
 #'
-#'
-create_ode_model <- function(
+#' @description
+#' Returns a fit of an ODE model with density-dependent migration.
+#' 
+#' dot(N)_i = sum_(j!=i) m_(ij) N_j - sum_(j!=i) m_(ji) N_i
+#' 
+#' where m_(ij) = m_0 • k_dij_(ij) / (CC_i) 
+#' 
+#' @param kernel_distance_flat Numeric vector, one dimensional, having the same format as [`stat::dist`].
+#' We assume the distance metric is symmetric.
+#' 
+create_ode_migration_only <- function(
     initial_population, times,
     birth_rate = NULL,
     death_rate = NULL,
@@ -38,7 +47,7 @@ create_ode_model <- function(
 #'
 #'
 devtools::load_all()
-create_ode_model(
+create_ode_migration_only(
   initial_population = c(100, 2),
   times = seq.default(0, 500, length.out = 1000),
   birth_rate = NA,
@@ -82,7 +91,18 @@ devtools::load_all()
 library(deSolve)
 
 #'
-#'
+#' 
+
+#' @description
+#' Returns a fit of an ODE model with density-dependent birth, death and migration.
+#' 
+#' dot(N)_i = (birth-death) • N_i (1 - N_i / CC_i) + sum_(j!=i) m_(ij) N_j - sum_(j!=i) m_(ji) N_i
+#' 
+#' where m_(ij) = m_0 • k_dij_(ij) / (CC_i)
+#' 
+#' @param kernel_distance_flat Numeric vector, one dimensional, having the same format as [`stat::dist`].
+#' We assume the distance metric is symmetric.
+#' 
 create_ode_model_bdm <- function(
     initial_population, times,
     birth_rate = NULL,
@@ -102,7 +122,6 @@ create_ode_model_bdm <- function(
     ),
     func = function(t, y, parms, ...) {
       with(parms, {
-        # function(population_total, birth, death, migration_baseline, carrying_capacity, k_dij) invisible(.Call(wrap__update_birth_death_and_migration, population_total, birth, death, migration_baseline, carrying_capacity, k_dij))
         update_birth_death_and_migration(
           population_total = y,
           birth = birth_rate,
