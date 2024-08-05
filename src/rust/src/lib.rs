@@ -4,8 +4,6 @@
 
 use extendr_api::prelude::*;
 
-#[deprecated]
-mod birth_death_discrete;
 mod linspace;
 mod logspace;
 mod simulation;
