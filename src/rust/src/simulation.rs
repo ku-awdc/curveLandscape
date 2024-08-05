@@ -56,6 +56,15 @@ fn sim_bd_only(
     assert_eq!(birth_baseline.len(), death_baseline.len());
     assert_eq!(death_baseline.len(), carrying_capacity.len());
 
+    // extensive output list
+    let mut record = Record::new(0);
+
+    // FIXME: what's a better behavior pattern?
+    // if n0 is all zero to begin with or carrying capacity is zero (thus propensity would be fully zero)
+    if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| *x == 0) {
+        return record;
+    }
+
     let n_len = n0.len();
     // let mut rng = SmallRng::seed_from_u64(20240805);
     let mut rng = SmallRng::from_entropy();
@@ -78,9 +87,6 @@ fn sim_bd_only(
     let mut propensity = Vec::from(death_baseline);
     let propensity = propensity.as_mut_slice();
     let mut total_propensity = 0.;
-
-    // extensive output list
-    let mut record = Record::new(0);
 
     izip!(
         n.iter(),
@@ -149,8 +155,6 @@ fn sim_bd_only(
         }
         // Terminate due to extinction
         if n.iter().all(|&x| x == 0) {
-            rprintln!("terminating because no-one is alive anymore");
-
             break 'simulation_loop;
         }
 
