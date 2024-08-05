@@ -4,10 +4,6 @@ use itertools::{izip, repeat_n};
 use rand::distributions::WeightedIndex;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
-#[deprecated = "todo"]
-#[derive(Debug)]
-struct PopConfig {}
-
 #[derive(Debug, IntoRobj)]
 struct Record {
     repetition: usize,
@@ -179,7 +175,6 @@ fn sim_bd_only(
         // and total propensity can be updated now
         total_propensity += propensity[patch_id];
 
-        // rprintln!("{:?}", propensity);
         // update which_patch_sampler, since it contains `propensities` as weights
         which_patch_sampler
             .update_weights(&[(patch_id, &propensity[patch_id])])
