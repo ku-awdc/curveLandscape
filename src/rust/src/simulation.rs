@@ -93,12 +93,12 @@ fn sim_bd_only(
     .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, prop)| {
         // birth-rate
         let n_double = n as f64;
-        if cc > n_double {
-            *beta = mu0 + (cc - n_double) * (beta0 - mu0) / cc;
-            *mu = mu0
+        if n_double > cc {
+            *mu = mu0 + (cc - n_double) * (beta0 - mu0) / cc;
+            *beta = mu0
         } else {
-            *beta = mu0;
-            *mu = mu0 + (n_double - cc) * (beta0 - mu0) / cc
+            *mu = mu0;
+            *beta = mu0 + (n_double - cc) * (beta0 - mu0) / cc
         };
         // TODO: debug assert if rates are positive..
         *prop = (*beta + *mu) * n_double;
@@ -111,7 +111,7 @@ fn sim_bd_only(
 
     // record initial state
     record.add_initial_state(current_t, n0);
-    loop {
+    'simulation_loop: loop {
         let delta_t: f64 = rng.sample(rand::distributions::Open01);
         let delta_t = -delta_t.ln() / total_propensity;
         assert!(delta_t.is_finite());
@@ -135,10 +135,6 @@ fn sim_bd_only(
             // birth
             n[patch_id] += 1;
 
-            // TODO: update rates, propensity, total propensity
-
-            // TODO: update which_patch_sampler
-
             record.time.push(current_t);
             record.id_state.push(patch_id);
             record.state.push(n[patch_id]);
@@ -147,15 +143,38 @@ fn sim_bd_only(
             assert_ne!(n[patch_id], 0);
             n[patch_id] -= 1;
 
-            // TODO: update rates, propensity, total propensity
-
-            // TODO: update which_patch_sampler
-
             record.time.push(current_t);
             record.id_state.push(patch_id);
             record.state.push(n[patch_id]);
         }
-        // TODO: what about if any n == 0 ? extinction?
+
+        // remove old propensity, but we don't have the new yet
+        total_propensity -= propensity[patch_id];
+
+        // update birth/death rate for the changed patch..
+        let growth_baseline = birth_baseline[patch_id] - death_baseline[patch_id];
+        let g_div_N = (growth_baseline as f64) / (cc_double[patch_id]);
+        if n[patch_id] > cc[patch_id] {
+            birth_rate[patch_id] = death_baseline[patch_id];
+            death_rate[patch_id] =
+                death_baseline[patch_id] + g_div_N * (n[patch_id] as f64 - cc_double[patch_id]);
+        } else {
+            birth_rate[patch_id] =
+                death_baseline[patch_id] + g_div_N * (n[patch_id] as f64 - cc_double[patch_id]);
+            death_rate[patch_id] = death_baseline[patch_id];
+        }
+
+        // now we can update the new patch propensity
+        propensity[patch_id] = (birth_rate[patch_id] + death_rate[patch_id]) * n[patch_id] as f64;
+        // and total propensity can be updated now
+        total_propensity += propensity[patch_id];
+
+        // update which_patch_sampler, since it contains `propensities` as weights
+        which_patch_sampler
+            .update_weights(&[(patch_id, &propensity[patch_id])])
+            .unwrap();
+
+        // Terminate due to extinction
         if n.iter().all(|&x| x == 0) {
             println!("terminating because no-one is alive anymore");
 
@@ -166,7 +185,7 @@ fn sim_bd_only(
                 record.state.push(*last_n);
             }
 
-            break;
+            break 'simulation_loop;
         }
     }
 
