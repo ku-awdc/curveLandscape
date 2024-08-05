@@ -15,6 +15,8 @@ NULL
 #'
 sim_bd_only <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max) .Call(wrap__sim_bd_only, n0, birth_baseline, death_baseline, carrying_capacity, t_max)
 
+sim_bd_only_many <- function() invisible(.Call(wrap__sim_bd_only_many))
+
 #' Simulates birth, death and migration process of a multi-patch system.
 #'
 #'

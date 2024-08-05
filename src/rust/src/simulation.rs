@@ -57,7 +57,8 @@ fn sim_bd_only(
     assert_eq!(death_baseline.len(), carrying_capacity.len());
 
     let n_len = n0.len();
-    let mut rng = SmallRng::seed_from_u64(20240805);
+    // let mut rng = SmallRng::seed_from_u64(20240805);
+    let mut rng = SmallRng::from_entropy();
     let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
     let cc =
         as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
@@ -94,11 +95,11 @@ fn sim_bd_only(
         // birth-rate
         let n_double = n as f64;
         if n_double > cc {
-            *mu = mu0 + (cc - n_double) * (beta0 - mu0) / cc;
+            *mu = mu0 + (n_double - cc) * (beta0 - mu0) / cc;
             *beta = mu0
         } else {
             *mu = mu0;
-            *beta = mu0 + (n_double - cc) * (beta0 - mu0) / cc
+            *beta = mu0 + (cc - n_double) * (beta0 - mu0) / cc
         };
         // TODO: debug assert if rates are positive..
         *prop = (*beta + *mu) * n_double;
@@ -127,8 +128,7 @@ fn sim_bd_only(
         // Did birth or death happen?
         // probability of birth happening
         let is_birth =
-            rng.gen_bool(birth_rate[patch_id] / (birth_rate[patch_id] + death_baseline[patch_id]));
-        // TODO: use `updated_weights` to speed this up.
+            rng.gen_bool(birth_rate[patch_id] / (birth_rate[patch_id] + death_rate[patch_id]));
 
         // println!("t = {t}");
         if is_birth {
@@ -147,6 +147,12 @@ fn sim_bd_only(
             record.id_state.push(patch_id);
             record.state.push(n[patch_id]);
         }
+        // Terminate due to extinction
+        if n.iter().all(|&x| x == 0) {
+            rprintln!("terminating because no-one is alive anymore");
+
+            break 'simulation_loop;
+        }
 
         // remove old propensity, but we don't have the new yet
         total_propensity -= propensity[patch_id];
@@ -160,7 +166,7 @@ fn sim_bd_only(
                 death_baseline[patch_id] + g_div_N * (n[patch_id] as f64 - cc_double[patch_id]);
         } else {
             birth_rate[patch_id] =
-                death_baseline[patch_id] + g_div_N * (n[patch_id] as f64 - cc_double[patch_id]);
+                death_baseline[patch_id] + g_div_N * (cc_double[patch_id] - n[patch_id] as f64);
             death_rate[patch_id] = death_baseline[patch_id];
         }
 
@@ -169,27 +175,28 @@ fn sim_bd_only(
         // and total propensity can be updated now
         total_propensity += propensity[patch_id];
 
+        // rprintln!("{:?}", propensity);
         // update which_patch_sampler, since it contains `propensities` as weights
         which_patch_sampler
             .update_weights(&[(patch_id, &propensity[patch_id])])
             .unwrap();
+    }
 
-        // Terminate due to extinction
-        if n.iter().all(|&x| x == 0) {
-            println!("terminating because no-one is alive anymore");
+    // FIXME: check if the last simulated event was exactly at `t_max`
 
-            // add an event at `t_max` that is just the repeat of last state
-            for (patch_id, last_n) in n.into_iter().enumerate() {
-                record.time.push(t_max);
-                record.id_state.push(patch_id);
-                record.state.push(*last_n);
-            }
-
-            break 'simulation_loop;
-        }
+    // add an event at `t_max` that is just the repeat of last state
+    for (patch_id, last_n) in n.into_iter().enumerate() {
+        record.time.push(t_max);
+        record.id_state.push(patch_id);
+        record.state.push(*last_n);
     }
 
     record
+}
+
+#[extendr]
+fn sim_bd_only_many() {
+    todo!()
 }
 
 /// Simulates birth, death and migration process of a multi-patch system.
@@ -606,6 +613,7 @@ extendr_module! {
     mod simulation;
     // Gillespie approach
     fn sim_bd_only;
+    fn sim_bd_only_many;
     fn sim_bdm;
     fn sim_migration_only;
     // fn sim_multiple_bdm;
