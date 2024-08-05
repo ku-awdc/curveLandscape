@@ -1,11 +1,23 @@
 {
+    // "workbench.colorCustomizations": {
+    //     "[Night Owl (No Italics)]": {
+    //     }
+    // },
+    "editor.tokenColorCustomizations": {
+        "[Night Owl Light (No Italics)]": {
+            "comments": "#b58900",
+        }
+    },
     "r.lsp.diagnostics": false,
     "rust-analyzer.linkedProjects": [
         "src/rust/Cargo.toml"
     ],
     // "editor.fontSize": 12,
     "cSpell.words": [
-        "extendr"
+        "extendr",
+        "linspace",
+        "logspace",
+        "parms"
     ],
     "rust-analyzer.completion.limit": null,
     

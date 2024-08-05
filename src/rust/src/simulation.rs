@@ -30,17 +30,155 @@ impl Record {
     }
 
     fn add_initial_state(&mut self, time: f64, n0: &[u32]) {
-        // FIXME: check if the records are empty before inserting initial states..
+        // check if the records are empty before inserting initial states..
+        assert!(
+            self.time.is_empty() & self.id_state.is_empty() & self.state.is_empty(),
+            "cannot insert default in already used record"
+        );
         self.time.extend(repeat_n(time, n0.len()));
         self.state.extend_from_slice(n0);
         self.id_state.extend(0..n0.len());
     }
 }
 
+/// Simulates a birth and death process that is density-dependent
+///
+///
+#[extendr]
+fn sim_bd_only(
+    n0: &[i32],
+    birth_baseline: &[f64],
+    death_baseline: &[f64],
+    carrying_capacity: &[i32],
+    t_max: f64,
+) -> Record {
+    assert_eq!(n0.len(), birth_baseline.len());
+    assert_eq!(birth_baseline.len(), death_baseline.len());
+    assert_eq!(death_baseline.len(), carrying_capacity.len());
+
+    let n_len = n0.len();
+    let mut rng = SmallRng::seed_from_u64(20240805);
+    let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
+    let cc =
+        as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
+    let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
+
+    // initialize state
+    let mut n: Vec<u32> = Vec::with_capacity(n_len);
+    n.extend_from_slice(n0);
+    assert_eq!(n.len(), n_len);
+    let n = n.as_mut_slice();
+
+    let mut birth_rate = Vec::from(birth_baseline);
+    let birth_rate = birth_rate.as_mut_slice();
+    let mut death_rate = Vec::from(death_baseline);
+    let death_rate = death_rate.as_mut_slice();
+    // in propensity [(birth rate + death rate) * count, ...]
+    let mut propensity = Vec::from(death_baseline);
+    let propensity = propensity.as_mut_slice();
+    let mut total_propensity = 0.;
+
+    // extensive output list
+    let mut record = Record::new(0);
+
+    izip!(
+        n.iter(),
+        cc_double.iter(),
+        birth_baseline.iter(),
+        death_baseline.iter(),
+        birth_rate.iter_mut(),
+        death_rate.iter_mut(),
+        propensity.iter_mut(),
+    )
+    .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, prop)| {
+        // birth-rate
+        let n_double = n as f64;
+        if cc > n_double {
+            *beta = mu0 + (cc - n_double) * (beta0 - mu0) / cc;
+            *mu = mu0
+        } else {
+            *beta = mu0;
+            *mu = mu0 + (n_double - cc) * (beta0 - mu0) / cc
+        };
+        // TODO: debug assert if rates are positive..
+        *prop = (*beta + *mu) * n_double;
+        total_propensity += *prop;
+    });
+    let mut which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
+
+    // TODO: initial time should be a result of Exp(1), as to have previous time...
+    let mut current_t = 0.0;
+
+    // record initial state
+    record.add_initial_state(current_t, n0);
+    loop {
+        let delta_t: f64 = rng.sample(rand::distributions::Open01);
+        let delta_t = -delta_t.ln() / total_propensity;
+        assert!(delta_t.is_finite());
+        current_t += delta_t;
+
+        if current_t >= t_max {
+            break;
+        }
+
+        // which patch experienced a (birth|death) event?
+        let patch_id = rng.sample(&which_patch_sampler);
+
+        // Did birth or death happen?
+        // probability of birth happening
+        let is_birth =
+            rng.gen_bool(birth_rate[patch_id] / (birth_rate[patch_id] + death_baseline[patch_id]));
+        // TODO: use `updated_weights` to speed this up.
+
+        // println!("t = {t}");
+        if is_birth {
+            // birth
+            n[patch_id] += 1;
+
+            // TODO: update rates, propensity, total propensity
+
+            // TODO: update which_patch_sampler
+
+            record.time.push(current_t);
+            record.id_state.push(patch_id);
+            record.state.push(n[patch_id]);
+        } else {
+            // death
+            assert_ne!(n[patch_id], 0);
+            n[patch_id] -= 1;
+
+            // TODO: update rates, propensity, total propensity
+
+            // TODO: update which_patch_sampler
+
+            record.time.push(current_t);
+            record.id_state.push(patch_id);
+            record.state.push(n[patch_id]);
+        }
+        // TODO: what about if any n == 0 ? extinction?
+        if n.iter().all(|&x| x == 0) {
+            println!("terminating because no-one is alive anymore");
+
+            // add an event at `t_max` that is just the repeat of last state
+            for (patch_id, last_n) in n.into_iter().enumerate() {
+                record.time.push(t_max);
+                record.id_state.push(patch_id);
+                record.state.push(*last_n);
+            }
+
+            break;
+        }
+    }
+
+    record
+}
+
 /// Simulates birth, death and migration process of a multi-patch system.
 ///
 ///
-/// It is assumed that birth-rate exceeds death-rate.
+///
+/// It is assumed that birth-rate exceeds death-rate, i.e. beta >= mu
+///
 ///
 #[extendr]
 fn sim_bdm(
@@ -448,6 +586,7 @@ fn get_total_number_of_elements(n: usize) -> usize {
 extendr_module! {
     mod simulation;
     // Gillespie approach
+    fn sim_bd_only;
     fn sim_bdm;
     fn sim_migration_only;
     // fn sim_multiple_bdm;
