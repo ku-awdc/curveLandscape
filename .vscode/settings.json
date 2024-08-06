@@ -6,6 +6,10 @@
     "editor.tokenColorCustomizations": {
         "[Night Owl Light (No Italics)]": {
             "comments": "#b58900",
+        },
+        "[Night Owl (No Italics)]": {
+            "comments": "#b58900",
+            
         }
     },
     "r.lsp.diagnostics": false,
