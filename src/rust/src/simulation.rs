@@ -136,19 +136,14 @@ fn sim_bd_only(
         if is_birth {
             // birth
             n[patch_id] += 1;
-
-            record.time.push(current_t);
-            record.id_state.push(patch_id);
-            record.state.push(n[patch_id]);
         } else {
             // death
-            assert_ne!(n[patch_id], 0);
+            debug_assert_ne!(n[patch_id], 0);
             n[patch_id] -= 1;
-
-            record.time.push(current_t);
-            record.id_state.push(patch_id);
-            record.state.push(n[patch_id]);
         }
+        record.time.push(current_t);
+        record.id_state.push(patch_id);
+        record.state.push(n[patch_id]);
         // Terminate due to extinction
         if n.iter().all(|&x| x == 0) {
             break 'simulation_loop;
@@ -245,9 +240,17 @@ fn sim_bdm(
 
     let mut birth_rate = Vec::from(birth_baseline);
     let birth_rate = birth_rate.as_mut_slice();
+    birth_rate.fill(0.);
+
     let mut death_rate = Vec::from(death_baseline);
     let death_rate = death_rate.as_mut_slice();
-    // in propensity [(birth rate + death rate) * count, ...]
+    death_rate.fill(0.);
+
+    let mut migration_rate = Vec::from(death_baseline);
+    let migration_rate = migration_rate.as_mut_slice();
+    migration_rate.fill(0.);
+
+    // in propensity [(birth rate + death rate + migration_rate(source) * count, ...]
     let mut propensity = Vec::from(death_baseline);
     let propensity = propensity.as_mut_slice();
     let mut total_propensity = 0.;
@@ -259,20 +262,30 @@ fn sim_bdm(
         death_baseline.iter(),
         birth_rate.iter_mut(),
         death_rate.iter_mut(),
+        migration_rate.iter_mut(),
         propensity.iter_mut(),
     )
-    .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, prop)| {
-        // birth-rate
-        let n_double = n as f64;
-        if n_double > cc {
-            *mu = mu0 + (n_double - cc) * (beta0 - mu0) / cc;
+    .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, mig, prop)| {
+        // birth-rate / death-rate
+        let n = n as f64;
+        if n > cc {
+            *mu = mu0 + (n - cc) * (beta0 - mu0) / cc;
             *beta = mu0
         } else {
             *mu = mu0;
-            *beta = mu0 + (cc - n_double) * (beta0 - mu0) / cc
+            *beta = mu0 + (cc - n) * (beta0 - mu0) / cc
         };
+
+        // migration rate
+        // APPROACH: wedge
+        *mig = ((n - (cc - 1.)).max(0.) * migration_baseline) / cc;
+
+        // TODO: APPROACH: smooth (untested)
+        // let log2: f64 = 1_f64.ln();
+        // *mig = ((n - cc).exp().ln_1p() * migration_baseline) / (cc * log2);
+
         // TODO: debug assert if rates are positive..
-        *prop = (*beta + *mu) * n_double;
+        *prop = (*beta + *mu + *mig) * n;
         total_propensity += *prop;
     });
     let mut which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
@@ -297,26 +310,63 @@ fn sim_bdm(
 
         // Did birth or death happen?
         // probability of birth happening
-        let is_birth =
-            rng.gen_bool(birth_rate[patch_id] / (birth_rate[patch_id] + death_rate[patch_id]));
+        // Did (birth|death|migration) happen?
+        let flag_bdm = rng.sample(
+            WeightedIndex::new([
+                birth_rate[patch_id],
+                death_rate[patch_id],
+                migration_rate[patch_id],
+            ])
+            .unwrap(),
+        );
 
-        // println!("t = {t}");
-        if is_birth {
+        let mut target_patch_id = patch_id; // sensible? default?
+        match flag_bdm {
             // birth
-            n[patch_id] += 1;
+            0 => {
+                n[patch_id] += 1;
 
-            record.time.push(current_t);
-            record.id_state.push(patch_id);
-            record.state.push(n[patch_id]);
-        } else {
+                record.time.push(current_t);
+                record.id_state.push(patch_id);
+                record.state.push(n[patch_id]);
+            }
             // death
-            assert_ne!(n[patch_id], 0);
-            n[patch_id] -= 1;
+            1 => {
+                debug_assert_ne!(n[patch_id], 0);
+                n[patch_id] -= 1;
 
-            record.time.push(current_t);
-            record.id_state.push(patch_id);
-            record.state.push(n[patch_id]);
-        }
+                record.time.push(current_t);
+                record.id_state.push(patch_id);
+                record.state.push(n[patch_id]);
+            }
+            // migration
+            2 => {
+                assert_ne!(n[patch_id], 0);
+                n[patch_id] -= 1;
+
+                record.time.push(current_t);
+                record.id_state.push(patch_id);
+                record.state.push(n[patch_id]);
+
+                // determine the target patch_id (exclude current as an option)
+                target_patch_id = rng.gen_range(0..n_len - 1);
+                target_patch_id = if target_patch_id < patch_id {
+                    target_patch_id
+                } else {
+                    // don't return `patch_id`, but everything above it
+                    target_patch_id + 1
+                };
+
+                n[target_patch_id] += 1;
+
+                record.time.push(current_t);
+                record.id_state.push(target_patch_id);
+                record.state.push(n[target_patch_id]);
+            }
+            _ => unreachable!(),
+        };
+        let target_patch_id = target_patch_id;
+
         // Terminate due to extinction
         if n.iter().all(|&x| x == 0) {
             break 'simulation_loop;
@@ -338,15 +388,78 @@ fn sim_bdm(
             death_rate[patch_id] = death_baseline[patch_id];
         }
 
+        // migration rate
+        // APPROACH: wedge
+        migration_rate[patch_id] = ((n[patch_id] as f64 - (cc_double[patch_id] - 1.)).max(0.)
+            * migration_baseline)
+            / cc_double[patch_id];
+
+        // TODO: APPROACH: smooth (untested)
+        // let log2: f64 = 1_f64.ln();
+        // migration_rate[patch_id] = ((n[patch_id] as f64 - cc_double[patch_id]).exp().ln_1p() * migration_baseline) / (cc_double[patch_id] * log2);
+
         // now we can update the new patch propensity
-        propensity[patch_id] = (birth_rate[patch_id] + death_rate[patch_id]) * n[patch_id] as f64;
+        propensity[patch_id] =
+            (birth_rate[patch_id] + death_rate[patch_id] + migration_rate[patch_id])
+                * n[patch_id] as f64;
         // and total propensity can be updated now
         total_propensity += propensity[patch_id];
 
-        // update which_patch_sampler, since it contains `propensities` as weights
-        which_patch_sampler
-            .update_weights(&[(patch_id, &propensity[patch_id])])
-            .unwrap();
+        if flag_bdm == 2 {
+            // migration happened, so...
+
+            // region: update everything for `target_patch_id` as well
+
+            // remove old propensity, but we don't have the new yet
+            total_propensity -= propensity[target_patch_id];
+
+            // update birth/death rate for the changed (target) patch..
+            let growth_baseline = birth_baseline[target_patch_id] - death_baseline[target_patch_id];
+            let g_div_N = (growth_baseline as f64) / (cc_double[target_patch_id]);
+            if n[target_patch_id] > cc[target_patch_id] {
+                birth_rate[target_patch_id] = death_baseline[target_patch_id];
+                death_rate[target_patch_id] = death_baseline[target_patch_id]
+                    + g_div_N * (n[target_patch_id] as f64 - cc_double[target_patch_id]);
+            } else {
+                birth_rate[target_patch_id] = death_baseline[target_patch_id]
+                    + g_div_N * (cc_double[target_patch_id] - n[target_patch_id] as f64);
+                death_rate[target_patch_id] = death_baseline[target_patch_id];
+            }
+
+            // migration rate
+            // APPROACH: wedge
+            migration_rate[target_patch_id] =
+                ((n[target_patch_id] as f64 - (cc_double[target_patch_id] - 1.)).max(0.)
+                    * migration_baseline)
+                    / cc_double[target_patch_id];
+
+            // TODO: APPROACH: smooth (untested)
+            // let log2: f64 = 1_f64.ln();
+            // migration_rate[target_patch_id] = ((n[target_patch_id] as f64 - cc_double[target_patch_id]).exp().ln_1p() * migration_baseline) / (cc_double[target_patch_id] * log2);
+
+            // now we can update the new patch propensity
+            propensity[target_patch_id] = (birth_rate[target_patch_id]
+                + death_rate[target_patch_id]
+                + migration_rate[target_patch_id])
+                * n[target_patch_id] as f64;
+            // and total propensity can be updated now
+            total_propensity += propensity[target_patch_id];
+            // endregion
+
+            // update which_patch_sampler, since it contains `propensities` as weights
+            which_patch_sampler
+                .update_weights(&[
+                    (patch_id, &propensity[patch_id]),
+                    (target_patch_id, &propensity[target_patch_id]),
+                ])
+                .unwrap();
+        } else {
+            // migration didn't happen...
+            // update which_patch_sampler, since it contains `propensities` as weights
+            which_patch_sampler
+                .update_weights(&[(patch_id, &propensity[patch_id])])
+                .unwrap();
+        }
     }
 
     // FIXME: check if the last simulated event was exactly at `t_max`
@@ -677,19 +790,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_name() {
-        let n0 = [10, 0, 0, 1];
-        let birth_baseline = [4., 4., 4., 4.];
-        let death_baseline = [1., 1., 1., 1.];
-        // let t_max = 25.;
-        let t_max = 5.;
-        let cc = [10, 7, 1, 1];
-
-        let record = sim_bdm(&n0, &birth_baseline, &death_baseline, &cc, t_max);
-        // dbg!(record);
-    }
-
-    #[test]
     fn test_indexing() {
         with_r(|| {});
     }
@@ -749,5 +849,10 @@ mod tests {
         let t_max = 100000.;
 
         sim_migration_only(&n0, &migration_baseline, &carrying_capacity, &k_dij, t_max);
+    }
+
+    #[test]
+    fn test_weighted_alias_update_twice() {
+        // can I update the same weight twice?
     }
 }
