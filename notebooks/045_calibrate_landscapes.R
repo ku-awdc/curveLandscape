@@ -72,11 +72,12 @@ calibrate_naive_grid <- function(naive_grid) {
           return(Inf)
         }
 
-        total <- naive_grid %>%
-          summarise(
-            total = sum(alpha[1] * Prop_High * area + alpha[2] * Prop_Low * area + alpha[3] * Prop_None * area)
-          ) %>%
-          pull(1)
+        total <- with(naive_grid, {
+          area_high <- alpha[1] * Prop_High * area
+          area_low <- alpha[2] * Prop_Low * area
+          area_none <- alpha[3] * Prop_None * area
+          sum(area_high + area_low + area_none)
+        })
 
         sqrt(
           (total - target_pop_area * alpha[1])**2
@@ -98,33 +99,82 @@ calib_output <- tibble(
     result = map(
       .progress = TRUE,
       cellsize_km2, \(cellsize) {
-        calibrate_naive_grid(create_naive_grid(cellsize))
+        naive_grid <- create_naive_grid(cellsize)
+        list(
+          naive_grid = naive_grid,
+          result = calibrate_naive_grid(naive_grid)
+        )
       }
     )
-  )
+  ) %>%
+  unnest_wider(result)
 
 
 calib_output %>%
   hoist(result, "par", "value") %>%
   unnest_wider("par") %>%
-  print(n = Inf)
+  print(n = Inf) ->
+calib_output
 
-calib_output$result[[1]]$par -> optimal_alpha
-
-
-
-habitat_islands %>%
-  st_area() %>%
-  set_units("km^2") %>%
-  as.numeric() %>%
+calib_output %>%
+  pivot_longer(
+    starts_with("alpha_"),
+    names_prefix = "alpha_", names_to = "HabitatType", values_to = "alpha"
+  ) %>%
+  identity() %>%
   {
-    area_km2 <- .
-    sum(area_km2 * optimal_alpha[1])
+    ggplot(.) +
+      aes(cellsize_km2, alpha, group = HabitatType) +
+      geom_line() +
+      ggpubr::theme_pubclean() +
+      NULL
   }
 
-naive_grid %>%
-  mutate(area = as.numeric(Area)) %>%
-  st_drop_geometry() %>%
-  summarise(
-    total = sum(optimal_alpha[1] * Prop_High * area + optimal_alpha[2] * Prop_Low * area + optimal_alpha[3] * Prop_None * area)
-  )
+# calib_output$result[[1]]$par -> optimal_alpha
+
+
+# habitat_islands %>%
+#   st_area() %>%
+#   set_units("km^2") %>%
+#   as.numeric() %>%
+#   {
+#     area_km2 <- .
+#     sum(area_km2 * optimal_alpha[1])
+#   }
+
+# naive_grid %>%
+#   mutate(area = as.numeric(Area)) %>%
+#   st_drop_geometry() %>%
+#   summarise(
+#     total = sum(optimal_alpha[1] * Prop_High * area + optimal_alpha[2] * Prop_Low * area + optimal_alpha[3] * Prop_None * area)
+#   )
+
+calib_output %>%
+  mutate(
+    total_habitat_island = map_dbl(alpha_High, \(alpha_High) {
+      sum((habitat_islands %>%
+        st_area() %>%
+        set_units("km^2") %>%
+        as.numeric()) * alpha_High)
+    }),
+    total_naive_grid = pmap_dbl(select(., naive_grid, alpha_High, alpha_Low, alpha_None), \(naive_grid, alpha_High, alpha_Low, alpha_None) {
+      naive_grid$area <- naive_grid$Area %>% as.numeric()
+      total <- with(naive_grid, {
+        area_high <- alpha_High * Prop_High * area
+        area_low <- alpha_Low * Prop_Low * area
+        area_none <- alpha_None * Prop_None * area
+        sum(area_high + area_low + area_none)
+      })
+      total
+    })
+  ) %>%
+  glimpse() %>%
+  identity() %>%
+  {
+    ggplot(.) +
+      # aes(cellsize_km2, alpha, group = HabitatType) +
+      geom_line(aes(cellsize_km2, total_habitat_island, color = "HC")) +
+      geom_line(aes(cellsize_km2, total_naive_grid, color = "naive")) +
+      ggpubr::theme_pubclean() +
+      NULL
+  }
