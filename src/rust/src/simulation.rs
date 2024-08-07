@@ -309,7 +309,7 @@ fn sim_bdm(
 
         // TODO: debug assert if rates are positive..
         *prop = (*beta + *mu + *mig) * n;
-        dbg!(*mig);
+        // dbg!(*mig);
         total_propensity += *prop;
 
         *g_div_cc = (beta0 - mu0) / cc;
@@ -351,6 +351,8 @@ fn sim_bdm(
             0 => {
                 n[patch_id] += 1;
 
+                // note: this bit is copied three times, and could be moved out of here,
+                // but for clarity, it is copied..
                 record.time.push(current_t);
                 record.id_state.push(patch_id);
                 record.state.push(n[patch_id]);
@@ -469,13 +471,14 @@ fn sim_bdm(
             total_propensity += propensity[target_patch_id];
             // endregion
 
-            dbg!(&[
-                (patch_id, &propensity[patch_id]),
-                (target_patch_id, &propensity[target_patch_id]),
-            ]);
+            // dbg!(&[
+            //     (patch_id, &propensity[patch_id]),
+            //     (target_patch_id, &propensity[target_patch_id]),
+            // ]);
             // update which_patch_sampler, since it contains `propensities` as weights
             which_patch_sampler
                 .update_weights(
+                    // the weights most be updated sequentially..
                     if patch_id <= target_patch_id {
                         [
                             (patch_id, &propensity[patch_id]),

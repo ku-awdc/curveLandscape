@@ -31,7 +31,7 @@ fn sim_migration_only(
     let cc =
         as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
     let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
-    dbg!(&cc_double, &cc);
+    // dbg!(&cc_double, &cc);
     // initialize state
     let mut n: Vec<u32> = Vec::with_capacity(n_len);
     n.extend_from_slice(n0);
