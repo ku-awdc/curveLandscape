@@ -40,32 +40,32 @@ output %>%
   }
 
 
-stoch_output %>%
-  identity() %>%
-  {
-    ggplot(.) +
-      aes(time, N) +
-      geom_step(
-        # alpha = 0.6,
-        aes(color = "Stochastic")
-      ) +
-      geom_line(
-        # data = ode_output,
-        data = ode_dd_bd_only(
-          growth_rate = 4 - 1, carrying_capacity = 5, n0 = c(1), delta_t = 0.01, t_max = 5
-        ),
-        linewidth = .9,
-        linetype = "dashed",
-        aes(time, N, color = "ODE")
-      ) +
-      labs(color = NULL) +
-      scale_colour_manual(
-        values = c(
-          "ODE" = "black",
-          "Stochastic" = "lightblue"
-        )
-      ) +
-      theme_bw(base_size = 15) +
-      theme(legend.position = "bottom") +
-      NULL
-  }
+# stoch_output %>%
+#   identity() %>%
+#   {
+#     ggplot(.) +
+#       aes(time, N) +
+#       geom_step(
+#         # alpha = 0.6,
+#         aes(color = "Stochastic")
+#       ) +
+#       geom_line(
+#         # data = ode_output,
+#         data = ode_dd_bd_only(
+#           growth_rate = 4 - 1, carrying_capacity = 5, n0 = c(1), delta_t = 0.01, t_max = 5
+#         ),
+#         linewidth = .9,
+#         linetype = "dashed",
+#         aes(time, N, color = "ODE")
+#       ) +
+#       labs(color = NULL) +
+#       scale_colour_manual(
+#         values = c(
+#           "ODE" = "black",
+#           "Stochastic" = "lightblue"
+#         )
+#       ) +
+#       theme_bw(base_size = 15) +
+#       theme(legend.position = "bottom") +
+#       NULL
+#   }

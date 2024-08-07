@@ -8,32 +8,32 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 pub(crate) struct Record {
     pub(crate) repetition: usize,
     pub(crate) time: Vec<f64>,
-    pub(crate) id_state: Vec<usize>,
-    pub(crate) state: Vec<u32>,
+    pub(crate) id_patch: Vec<usize>,
+    pub(crate) count: Vec<u32>,
 }
 
 impl Record {
     pub fn new(repetition: usize) -> Self {
         let time = Vec::new();
-        let state = Vec::new();
-        let id_state = Vec::new();
+        let count = Vec::new();
+        let id_patch = Vec::new();
         Self {
             repetition,
             time,
-            state,
-            id_state,
+            count,
+            id_patch,
         }
     }
 
     pub fn add_initial_state(&mut self, time: f64, n0: &[u32]) {
         // check if the records are empty before inserting initial states..
         assert!(
-            self.time.is_empty() & self.id_state.is_empty() & self.state.is_empty(),
+            self.time.is_empty() & self.id_patch.is_empty() & self.count.is_empty(),
             "cannot insert default in already used record"
         );
         self.time.extend(repeat_n(time, n0.len()));
-        self.state.extend_from_slice(n0);
-        self.id_state.extend(0..n0.len());
+        self.count.extend_from_slice(n0);
+        self.id_patch.extend(0..n0.len());
     }
 }
 
@@ -142,8 +142,8 @@ fn sim_bd_only(
             n[patch_id] -= 1;
         }
         record.time.push(current_t);
-        record.id_state.push(patch_id);
-        record.state.push(n[patch_id]);
+        record.id_patch.push(patch_id);
+        record.count.push(n[patch_id]);
         // Terminate due to extinction
         if n.iter().all(|&x| x == 0) {
             break 'simulation_loop;
@@ -181,8 +181,8 @@ fn sim_bd_only(
     // add an event at `t_max` that is just the repeat of last state
     for (patch_id, last_n) in n.into_iter().enumerate() {
         record.time.push(t_max);
-        record.id_state.push(patch_id);
-        record.state.push(*last_n);
+        record.id_patch.push(patch_id);
+        record.count.push(*last_n);
     }
 
     record
@@ -354,8 +354,8 @@ fn sim_bdm(
                 // note: this bit is copied three times, and could be moved out of here,
                 // but for clarity, it is copied..
                 record.time.push(current_t);
-                record.id_state.push(patch_id);
-                record.state.push(n[patch_id]);
+                record.id_patch.push(patch_id);
+                record.count.push(n[patch_id]);
             }
             // death
             1 => {
@@ -363,8 +363,8 @@ fn sim_bdm(
                 n[patch_id] -= 1;
 
                 record.time.push(current_t);
-                record.id_state.push(patch_id);
-                record.state.push(n[patch_id]);
+                record.id_patch.push(patch_id);
+                record.count.push(n[patch_id]);
             }
             // migration
             2 => {
@@ -372,8 +372,8 @@ fn sim_bdm(
                 n[patch_id] -= 1;
 
                 record.time.push(current_t);
-                record.id_state.push(patch_id);
-                record.state.push(n[patch_id]);
+                record.id_patch.push(patch_id);
+                record.count.push(n[patch_id]);
 
                 // determine the target patch_id (exclude current as an option)
                 target_patch_id = rng.gen_range(0..n_len - 1); // [0,..., n-2]
@@ -387,8 +387,8 @@ fn sim_bdm(
                 n[target_patch_id] += 1;
 
                 record.time.push(current_t);
-                record.id_state.push(target_patch_id);
-                record.state.push(n[target_patch_id]);
+                record.id_patch.push(target_patch_id);
+                record.count.push(n[target_patch_id]);
             }
             _ => unreachable!(),
         };
@@ -507,8 +507,8 @@ fn sim_bdm(
     // add an event at `t_max` that is just the repeat of last state
     for (patch_id, last_n) in n.into_iter().enumerate() {
         record.time.push(t_max);
-        record.id_state.push(patch_id);
-        record.state.push(*last_n);
+        record.id_patch.push(patch_id);
+        record.count.push(*last_n);
     }
 
     record

@@ -127,10 +127,10 @@ fn sim_migration_only(
         n[target] += 1;
         record.time.push(t);
         record.time.push(t);
-        record.id_state.push(source);
-        record.state.push(n[source]);
-        record.id_state.push(target);
-        record.state.push(n[target]);
+        record.id_patch.push(source);
+        record.count.push(n[source]);
+        record.id_patch.push(target);
+        record.count.push(n[target]);
     }
     record
 }
