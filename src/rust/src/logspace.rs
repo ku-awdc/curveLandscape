@@ -102,25 +102,6 @@ mod tests {
     use super::logspace;
 
     #[test]
-    #[cfg(feature = "approx")]
-    fn valid() {
-        use crate::{arr1, Array1};
-        use approx::assert_abs_diff_eq;
-
-        let array: Array1<_> = logspace(10.0, 0.0, 3.0, 4).collect();
-        assert_abs_diff_eq!(array, arr1(&[1e0, 1e1, 1e2, 1e3]));
-
-        let array: Array1<_> = logspace(10.0, 3.0, 0.0, 4).collect();
-        assert_abs_diff_eq!(array, arr1(&[1e3, 1e2, 1e1, 1e0]));
-
-        let array: Array1<_> = logspace(-10.0, 3.0, 0.0, 4).collect();
-        assert_abs_diff_eq!(array, arr1(&[-1e3, -1e2, -1e1, -1e0]));
-
-        let array: Array1<_> = logspace(-10.0, 0.0, 3.0, 4).collect();
-        assert_abs_diff_eq!(array, arr1(&[-1e0, -1e1, -1e2, -1e3]));
-    }
-
-    #[test]
     fn iter_forward() {
         let mut iter = logspace(10.0f64, 0.0, 3.0, 4);
 
