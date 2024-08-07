@@ -5,15 +5,15 @@ use rand::distributions::WeightedIndex;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 #[derive(Debug, IntoRobj)]
-struct Record {
-    repetition: usize,
-    time: Vec<f64>,
-    id_state: Vec<usize>,
-    state: Vec<u32>,
+pub(crate) struct Record {
+    pub(crate) repetition: usize,
+    pub(crate) time: Vec<f64>,
+    pub(crate) id_state: Vec<usize>,
+    pub(crate) state: Vec<u32>,
 }
 
 impl Record {
-    fn new(repetition: usize) -> Self {
+    pub fn new(repetition: usize) -> Self {
         let time = Vec::new();
         let state = Vec::new();
         let id_state = Vec::new();
@@ -25,7 +25,7 @@ impl Record {
         }
     }
 
-    fn add_initial_state(&mut self, time: f64, n0: &[u32]) {
+    pub fn add_initial_state(&mut self, time: f64, n0: &[u32]) {
         // check if the records are empty before inserting initial states..
         assert!(
             self.time.is_empty() & self.id_state.is_empty() & self.state.is_empty(),
@@ -195,7 +195,7 @@ fn sim_bd_only_many() {
 
 /// Simulates birth, death and migration process of a multi-patch system.
 ///
-/// @param migration_baseline Double that is m_0 in the formulas. Is normalised
+/// @param migration_baseline Double that is m_0 in the formulas and is normalised
 /// by (n-1) internally.
 ///
 /// @details
@@ -241,7 +241,13 @@ fn sim_bdm(
     let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
 
     // migration baseline must be normalised based on number of patches
-    let migration_baseline = migration_baseline / (n_len - 1) as f64;
+    let migration_baseline = if n_len == 1 {
+        // no migration can happen, set to zero.
+        0.
+    } else {
+        migration_baseline / (n_len - 1) as f64
+    };
+    debug_assert!(migration_baseline.is_finite());
 
     // initialize state
     let mut n: Vec<u32> = Vec::with_capacity(n_len);
@@ -261,9 +267,14 @@ fn sim_bdm(
     let migration_rate = migration_rate.as_mut_slice();
     migration_rate.fill(0.);
 
-    // in propensity [(birth rate + death rate + migration_rate(source) * count, ...]
+    // in propensity [(birth rate + death rate + migration_rate(source)) * count, ...]
     let mut propensity = Vec::from(death_baseline);
     let propensity = propensity.as_mut_slice();
+
+    let mut g_div_cc_baseline = Vec::from(death_baseline);
+    let g_div_cc_baseline = g_div_cc_baseline.as_mut_slice();
+    g_div_cc_baseline.fill(0.);
+
     let mut total_propensity = 0.;
 
     izip!(
@@ -275,16 +286,17 @@ fn sim_bdm(
         death_rate.iter_mut(),
         migration_rate.iter_mut(),
         propensity.iter_mut(),
+        g_div_cc_baseline.iter_mut(),
     )
-    .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, mig, prop)| {
+    .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, mig, prop, g_div_cc)| {
         // birth-rate / death-rate
         let n = n as f64;
         if n > cc {
-            *mu = mu0 + (n - cc) * (beta0 - mu0) / cc;
+            *mu = mu0 + ((n - cc) * (beta0 - mu0)) / cc;
             *beta = mu0
         } else {
             *mu = mu0;
-            *beta = mu0 + (cc - n) * (beta0 - mu0) / cc
+            *beta = mu0 + ((cc - n) * (beta0 - mu0)) / cc
         };
 
         // migration rate
@@ -297,8 +309,12 @@ fn sim_bdm(
 
         // TODO: debug assert if rates are positive..
         *prop = (*beta + *mu + *mig) * n;
+        dbg!(*mig);
         total_propensity += *prop;
+
+        *g_div_cc = (beta0 - mu0) / cc;
     });
+    // rprintln!("{:#?}", propensity);
     let mut which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
 
     // TODO: initial time should be a result of Exp(1), as to have previous time...
@@ -316,11 +332,9 @@ fn sim_bdm(
             break;
         }
 
-        // which patch experienced a (birth|death) event?
+        // which patch experienced a (birth|death|migration) event?
         let patch_id = rng.sample(&which_patch_sampler);
 
-        // Did birth or death happen?
-        // probability of birth happening
         // Did (birth|death|migration) happen?
         let flag_bdm = rng.sample(
             WeightedIndex::new([
@@ -360,7 +374,7 @@ fn sim_bdm(
                 record.state.push(n[patch_id]);
 
                 // determine the target patch_id (exclude current as an option)
-                target_patch_id = rng.gen_range(0..n_len - 1);
+                target_patch_id = rng.gen_range(0..n_len - 1); // [0,..., n-2]
                 target_patch_id = if target_patch_id < patch_id {
                     target_patch_id
                 } else {
@@ -387,15 +401,14 @@ fn sim_bdm(
         total_propensity -= propensity[patch_id];
 
         // update birth/death rate for the changed patch..
-        let growth_baseline = birth_baseline[patch_id] - death_baseline[patch_id];
-        let g_div_N = (growth_baseline as f64) / (cc_double[patch_id]);
+        let g_div_cc = g_div_cc_baseline[patch_id];
         if n[patch_id] > cc[patch_id] {
             birth_rate[patch_id] = death_baseline[patch_id];
             death_rate[patch_id] =
-                death_baseline[patch_id] + g_div_N * (n[patch_id] as f64 - cc_double[patch_id]);
+                death_baseline[patch_id] + g_div_cc * (n[patch_id] as f64 - cc_double[patch_id]);
         } else {
             birth_rate[patch_id] =
-                death_baseline[patch_id] + g_div_N * (cc_double[patch_id] - n[patch_id] as f64);
+                death_baseline[patch_id] + g_div_cc * (cc_double[patch_id] - n[patch_id] as f64);
             death_rate[patch_id] = death_baseline[patch_id];
         }
 
@@ -425,15 +438,14 @@ fn sim_bdm(
             total_propensity -= propensity[target_patch_id];
 
             // update birth/death rate for the changed (target) patch..
-            let growth_baseline = birth_baseline[target_patch_id] - death_baseline[target_patch_id];
-            let g_div_N = (growth_baseline as f64) / (cc_double[target_patch_id]);
+            let g_div_cc = g_div_cc_baseline[target_patch_id];
             if n[target_patch_id] > cc[target_patch_id] {
                 birth_rate[target_patch_id] = death_baseline[target_patch_id];
                 death_rate[target_patch_id] = death_baseline[target_patch_id]
-                    + g_div_N * (n[target_patch_id] as f64 - cc_double[target_patch_id]);
+                    + g_div_cc * (n[target_patch_id] as f64 - cc_double[target_patch_id]);
             } else {
                 birth_rate[target_patch_id] = death_baseline[target_patch_id]
-                    + g_div_N * (cc_double[target_patch_id] - n[target_patch_id] as f64);
+                    + g_div_cc * (cc_double[target_patch_id] - n[target_patch_id] as f64);
                 death_rate[target_patch_id] = death_baseline[target_patch_id];
             }
 
@@ -457,12 +469,26 @@ fn sim_bdm(
             total_propensity += propensity[target_patch_id];
             // endregion
 
+            dbg!(&[
+                (patch_id, &propensity[patch_id]),
+                (target_patch_id, &propensity[target_patch_id]),
+            ]);
             // update which_patch_sampler, since it contains `propensities` as weights
             which_patch_sampler
-                .update_weights(&[
-                    (patch_id, &propensity[patch_id]),
-                    (target_patch_id, &propensity[target_patch_id]),
-                ])
+                .update_weights(
+                    if patch_id <= target_patch_id {
+                        [
+                            (patch_id, &propensity[patch_id]),
+                            (target_patch_id, &propensity[target_patch_id]),
+                        ]
+                    } else {
+                        [
+                            (target_patch_id, &propensity[target_patch_id]),
+                            (patch_id, &propensity[patch_id]),
+                        ]
+                    }
+                    .as_slice(),
+                )
                 .unwrap();
         } else {
             // migration didn't happen...
@@ -503,276 +529,13 @@ struct ScenarioRecords {
 //     }
 // }
 
-/// Perform only simulation with migration, no birth/death feedback
-#[extendr]
-fn sim_migration_only(
-    n0: &[i32],
-    migration_baseline: &[f64],
-    carrying_capacity: &[i32],
-    k_dij: &[f64],
-    t_max: f64,
-) -> Record {
-    let n_len = n0.len();
-    // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
-    assert_eq!(n_len, migration_baseline.len());
-    assert_eq!(migration_baseline.len(), carrying_capacity.len());
-
-    // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
-    assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
-
-    let mut rng = SmallRng::seed_from_u64(20240506);
-    // let n0: Vec<u32> = n0.iter().map(|&x| x.try_into().unwrap()).collect_vec();
-    let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
-    let cc =
-        as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
-    let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
-    dbg!(&cc_double, &cc);
-    // initialize state
-    let mut n: Vec<u32> = Vec::with_capacity(n_len);
-    n.extend_from_slice(n0);
-    assert_eq!(n.len(), n_len);
-    let n = n.as_mut_slice(); // state variable
-
-    let mut record = Record::new(0);
-
-    // TODO: initial time should be a result of Exp(1), as to have previous time...
-    let mut t = 0.0;
-
-    // record initial state
-    record.add_initial_state(t, n0);
-
-    //TODO: make them into slices?
-    let mut emigration = vec![0.; k_dij.len()];
-    let emigration = emigration.as_mut_slice();
-    let mut immigration = vec![0.; k_dij.len()];
-    let immigration = immigration.as_mut_slice();
-    loop {
-        let delta_t: f64 = rng.sample(rand::distributions::Open01);
-
-        // Equation (1) m0 • k(d_ij) • exp(-cc[source])
-        // Equation (2) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source??]))
-
-        let mut total_propensity: f64 = 0.;
-        let mut emigration_propensity: f64 = 0.;
-        let mut immigration_propensity: f64 = 0.;
-        for k in 0..k_dij.len() {
-            let [i, j] = get_row_col(k, n_len);
-            // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
-            let equation_1_ji = migration_baseline[i] * k_dij[k] * (-cc_double[i]).exp();
-            let equation_1_ij = migration_baseline[j] * k_dij[k] * (-cc_double[j]).exp();
-            // let equation_1_ji = migration_baseline[i] * k_dij[k] / cc_double[i];
-            // let equation_1_ij = migration_baseline[j] * k_dij[k] / cc_double[j];
-
-            let rate_equation_1_ji = equation_1_ji * n[i] as f64;
-            let rate_equation_1_ij = equation_1_ij * n[j] as f64;
-            //TODO: test if they are sign positive?
-
-            emigration[k] = rate_equation_1_ji;
-            immigration[k] = rate_equation_1_ij;
-
-            emigration_propensity += rate_equation_1_ji;
-            immigration_propensity += rate_equation_1_ij;
-
-            total_propensity += rate_equation_1_ji + rate_equation_1_ij;
-
-            // TODO: add equation_2_ij, equation_2_ji
-        }
-        let total_propensity = total_propensity;
-        let emigration_propensity = emigration_propensity;
-        let immigration_propensity = immigration_propensity;
-
-        // dbg!(total_propensity);
-        // dbg!(&immigration, &emigration, total_propensity);
-        let delta_t = -delta_t.ln() / total_propensity;
-        assert!(delta_t.is_finite());
-        t += delta_t;
-
-        if t >= t_max {
-            break;
-        }
-
-        // next event
-        // TODO: use `updated_weights` to speed this up.
-        let which_component =
-            WeightedIndex::new([emigration_propensity, immigration_propensity]).unwrap();
-        let which_component = rng.sample(&which_component);
-
-        let current_component_propensity = if which_component == 0 {
-            // emigration
-            emigration.as_ref()
-        } else {
-            // immigration
-            immigration.as_ref()
-        };
-        // TODO: use `updated_weights` to speed this up.
-        let which_k = WeightedIndex::new(current_component_propensity).unwrap();
-        let which_k = rng.sample(&which_k);
-
-        let [source, target] = if which_component == 0 {
-            // emigration
-            let [i, j] = get_row_col(which_k, n_len);
-            [i, j]
-        } else {
-            // immigration
-            let [i, j] = get_row_col(which_k, n_len);
-            [j, i]
-        };
-
-        n[source] -= 1;
-        n[target] += 1;
-        record.time.push(t);
-        record.time.push(t);
-        record.id_state.push(source);
-        record.state.push(n[source]);
-        record.id_state.push(target);
-        record.state.push(n[target]);
-    }
-    record
-}
-
-/// Updates the population state vector according to the migration equation
-///
-/// (CURRENT) Equation (1 - exp) m0 • k(d_ij) • exp(-cc[source])
-/// (MISSING) Equation (1 - div) m0 • k(d_ij) / cc[source]
-/// (MISSING) Equation (2 - exp) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source]))
-/// (MISSING) Equation (2 - div) m0 • k(d_ij) n[source] / (cc[source]) • cc[target])
-///
-///
-#[extendr]
-fn update_migration_only(
-    population_total: &mut [f64],
-    migration_baseline: &[f64],
-    carrying_capacity: &[f64],
-    k_dij: &[f64],
-) {
-    let n_len = population_total.len();
-    // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
-    assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
-    // assume: |vec(n)| = |vec(m0)| = |vec(cc)|
-    assert_eq!(n_len, migration_baseline.len());
-    assert_eq!(migration_baseline.len(), carrying_capacity.len());
-
-    let n_current = population_total.to_owned();
-    let n_current: &[f64] = n_current.as_ref();
-
-    population_total.fill(0.);
-    for k in 0..k_dij.len() {
-        let [i, j] = get_row_col(k, n_len);
-        // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
-        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
-        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
-
-        // verified!
-        let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
-        let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
-        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
-        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
-
-        // for debug purpose
-        // let equation_1_ji = migration_baseline[i];
-        // let equation_1_ij = migration_baseline[j];
-        let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
-        let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
-
-        population_total[i] += rate_equation_1_ij - rate_equation_1_ji;
-        population_total[j] += rate_equation_1_ji - rate_equation_1_ij;
-    }
-}
-
-/// Updates the population state vector according to the migration equation together with
-/// density-dependent birth-death.
-///
-/// (CURRENT) Equation (1 - exp) m0 • k(d_ij) • exp(-cc[source])
-/// (MISSING) Equation (1 - div) m0 • k(d_ij) / cc[source]
-/// (MISSING) Equation (2 - exp) m0 • k(d_ij) • exp(-cc[source]) • exp(-(cc[target] - n[source]))
-/// (MISSING) Equation (2 - div) m0 • k(d_ij) n[source] / (cc[source]) • cc[target])
-///
-///
-#[extendr]
-fn update_birth_death_and_migration(
-    population_total: &mut [f64],
-    birth: f64,
-    death: f64,
-    migration_baseline: &[f64],
-    // carrying_capacity: &[i32],
-    carrying_capacity: &[f64],
-    k_dij: &[f64],
-) {
-    let n_len = population_total.len();
-    // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
-    assert_eq!(n_len, migration_baseline.len());
-    assert_eq!(migration_baseline.len(), carrying_capacity.len());
-    // k_dij is assumed to be lower triangular, column-wise, w/o diagonal distance "matrix"
-    assert_eq!(k_dij.len(), get_total_number_of_elements(n_len));
-
-    let n_current = population_total.to_owned();
-    let n_current: &[f64] = n_current.as_ref();
-
-    population_total.fill(0.);
-    for k in 0..k_dij.len() {
-        let [i, j] = get_row_col(k, n_len);
-        // since k_dij is symmetric, k_dij[k] "=" k_dji[k] let us say...
-        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
-        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
-
-        // verified!
-        let equation_1_ji = migration_baseline[i] * k_dij[k] / carrying_capacity[i];
-        let equation_1_ij = migration_baseline[j] * k_dij[k] / carrying_capacity[j];
-        // let equation_1_ji = migration_baseline[i] * k_dij[k] * (-carrying_capacity[i]).exp();
-        // let equation_1_ij = migration_baseline[j] * k_dij[k] * (-carrying_capacity[j]).exp();
-
-        let rate_equation_1_ji = equation_1_ji * n_current[i] as f64;
-        let rate_equation_1_ij = equation_1_ij * n_current[j] as f64;
-
-        population_total[i] += rate_equation_1_ij - rate_equation_1_ji;
-        population_total[j] += rate_equation_1_ji - rate_equation_1_ij;
-    }
-
-    // after migration, apply birth/death dynamics.
-    let growth_rate: f64 = birth - death;
-    for i in 0..n_len {
-        population_total[i] +=
-            n_current[i] * growth_rate * (1. - n_current[i] / carrying_capacity[i]);
-    }
-}
-
 /// Checks if all elements of `integer` are non-negative, thus returns a transmuted unsigned integer slice back.
-fn as_u32(integer: &[i32]) -> Option<&[u32]> {
+pub(crate) fn as_u32(integer: &[i32]) -> Option<&[u32]> {
     let any_negative = integer.iter().any(|x| x.is_negative());
     if any_negative {
         return None;
     }
     Some(unsafe { std::mem::transmute(integer) })
-}
-
-#[extendr]
-/// Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
-fn get_row_col(k: usize, n: usize) -> [usize; 2] {
-    // let j = (((n - 1).pow(2) - 2 * k) as f64).sqrt() as usize - n + 1;
-    // todo!();
-
-    // kp := k_max - k
-
-    let kp = (n * (n - 1)) / 2 - 1 - k;
-    let kp = kp as f64;
-    let p = (((1. + 8. * kp).sqrt() - 1.) / 2.).floor();
-    let n_float = n as f64;
-    let i = n_float - (kp - p * (p + 1.) / 2.) - 1.;
-    let j = n_float - p - 2.;
-    [i as _, j as _]
-}
-
-#[extendr]
-/// Returns the linear, 0-index id for (i,j) for n x n matrix.
-fn get_linear_id(i: usize, j: usize, n: usize) -> usize {
-    (n * (n - 1) - (n - j) * (n - j - 1)) / 2 + i - j - 1
-}
-
-#[extendr]
-/// Return the total number of elements in lower-triangular matrix (without diagonal)
-fn get_total_number_of_elements(n: usize) -> usize {
-    // FIXME: make safe when n = 0
-    n * (n - 1) / 2
 }
 
 extendr_module! {
@@ -781,17 +544,13 @@ extendr_module! {
     fn sim_bd_only;
     fn sim_bd_only_many;
     fn sim_bdm;
-    fn sim_migration_only;
+    // fn sim_migration_only;
     // fn sim_multiple_bdm;
 
     // ODE approach
-    fn update_migration_only;
-    fn update_birth_death_and_migration;
+    // fn update_migration_only;
+    // fn update_birth_death_and_migration;
 
-    // internal functions, remove eventually
-    fn get_row_col;
-    fn get_linear_id;
-    fn get_total_number_of_elements;
 }
 
 #[cfg(test)]
@@ -803,52 +562,6 @@ mod tests {
     #[test]
     fn test_indexing() {
         with_r(|| {});
-    }
-
-    #[test]
-    fn tri_u_index() {
-        // n = 2
-        assert_eq!(get_row_col(0, 2), [1, 0]);
-
-        // n = 3
-        let ij = get_row_col(0, 3);
-        assert_eq!(ij, [1, 0]);
-        let ij = get_row_col(1, 3);
-        assert_eq!(ij, [2, 0]);
-        let ij = get_row_col(2, 3);
-        assert_eq!(ij, [2, 1]);
-
-        //TODO: make tests
-        // index_to_i_j_colwise_nodiag(1 - 1, 4) # 1 0
-        // index_to_i_j_colwise_nodiag(2 - 1, 4) # 2 0
-        // index_to_i_j_colwise_nodiag(3 - 1, 4) # 3 0
-        // index_to_i_j_colwise_nodiag(4 - 1, 4) # 2 1
-        // index_to_i_j_colwise_nodiag(5 - 1, 4) # 3 1
-        // index_to_i_j_colwise_nodiag(6 - 1, 4) # 3 2
-    }
-
-    /// if this test passes, we know atleast that get_row_col and get_linear_id are consistent with
-    /// each other.
-    #[test]
-    fn test_triangular_index_and_back() {
-        let n = 5;
-        // dbg!(n);
-        for k in 0..get_total_number_of_elements(n) {
-            let [i, j] = get_row_col(k, n);
-            // dbg!(i, j);
-            let kk = get_linear_id(i, j, n);
-            // dbg!(k, kk);
-            assert_eq!(kk, k);
-        }
-
-        // for a few n
-        for n in [2, 3, 4, 5, 6, 7, 8] {
-            for k in 0..get_total_number_of_elements(n) {
-                let [i, j] = get_row_col(k, n);
-                let kk = get_linear_id(i, j, n);
-                assert_eq!(kk, k);
-            }
-        }
     }
 
     #[test]
@@ -865,5 +578,23 @@ mod tests {
     #[test]
     fn test_weighted_alias_update_twice() {
         // can I update the same weight twice?
+    }
+
+    #[test]
+    fn test_sim_bdm() {
+        let n0 = [2];
+        let birth_baseline = [4.];
+        let death_baseline = [1.];
+        let carrying_capacity = [4];
+        let migration_baseline = 0.1;
+        let t_max = 10.;
+        sim_bdm(
+            n0.as_slice(),
+            birth_baseline.as_slice(),
+            death_baseline.as_slice(),
+            carrying_capacity.as_slice(),
+            migration_baseline,
+            t_max,
+        );
     }
 }

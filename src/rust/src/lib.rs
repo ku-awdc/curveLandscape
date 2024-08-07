@@ -4,9 +4,11 @@
 
 use extendr_api::prelude::*;
 
+mod full_migration_simulation; // work in progress
 mod linspace;
 mod logspace;
 mod simulation;
+mod triangle_indexing;
 
 // Macro to generate exports.
 // This ensures exported functions are registered with R.
@@ -14,4 +16,5 @@ mod simulation;
 extendr_module! {
     mod curveLandscape;
     use simulation;
+    use triangle_indexing;
 }

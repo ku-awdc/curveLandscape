@@ -19,7 +19,7 @@ sim_bd_only_many <- function() invisible(.Call(wrap__sim_bd_only_many))
 
 #' Simulates birth, death and migration process of a multi-patch system.
 #'
-#' @param migration_baseline Double that is m_0 in the formulas, and is normalised
+#' @param migration_baseline Double that is m_0 in the formulas and is normalised
 #' by (n-1) internally.
 #'
 #' @details
