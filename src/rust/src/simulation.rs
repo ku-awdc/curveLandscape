@@ -195,6 +195,13 @@ fn sim_bd_only_many() {
 
 /// Simulates birth, death and migration process of a multi-patch system.
 ///
+/// @param migration_baseline Double that is m_0 in the formulas. Is normalised
+/// by (n-1) internally.
+///
+/// @details
+///
+/// The migration-baseline must be normalised
+///
 ///
 ///
 /// It is assumed that birth-rate exceeds death-rate, i.e. beta >= mu
@@ -209,6 +216,7 @@ fn sim_bdm(
     migration_baseline: f64,
     t_max: f64,
 ) -> Record {
+    assert!(n0.len() > 0);
     assert_eq!(n0.len(), birth_baseline.len());
     assert_eq!(birth_baseline.len(), death_baseline.len());
     assert_eq!(death_baseline.len(), carrying_capacity.len());
@@ -231,6 +239,9 @@ fn sim_bdm(
     let cc =
         as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
     let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
+
+    // migration baseline must be normalised based on number of patches
+    let migration_baseline = migration_baseline / (n_len - 1) as f64;
 
     // initialize state
     let mut n: Vec<u32> = Vec::with_capacity(n_len);
@@ -341,7 +352,7 @@ fn sim_bdm(
             }
             // migration
             2 => {
-                assert_ne!(n[patch_id], 0);
+                debug_assert_ne!(n[patch_id], 0);
                 n[patch_id] -= 1;
 
                 record.time.push(current_t);

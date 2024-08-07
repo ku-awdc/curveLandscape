@@ -4,11 +4,24 @@
 \alias{sim_bdm}
 \title{Simulates birth, death and migration process of a multi-patch system.}
 \usage{
-sim_bdm(n0, birth_baseline, death_baseline, carrying_capacity, t_max)
+sim_bdm(
+  n0,
+  birth_baseline,
+  death_baseline,
+  carrying_capacity,
+  migration_baseline,
+  t_max
+)
+}
+\arguments{
+\item{migration_baseline}{Double that is m_0 in the formulas. Is normalised
+by (n-1) internally.}
 }
 \description{
 Simulates birth, death and migration process of a multi-patch system.
 }
 \details{
+The migration-baseline must be normalised
+
 It is assumed that birth-rate exceeds death-rate, i.e. beta >= mu
 }

@@ -19,12 +19,19 @@ sim_bd_only_many <- function() invisible(.Call(wrap__sim_bd_only_many))
 
 #' Simulates birth, death and migration process of a multi-patch system.
 #'
+#' @param migration_baseline Double that is m_0 in the formulas, and is normalised
+#' by (n-1) internally.
+#'
+#' @details
+#'
+#' The migration-baseline must be normalised
+#'
 #'
 #'
 #' It is assumed that birth-rate exceeds death-rate, i.e. beta >= mu
 #'
 #'
-sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, carrying_capacity, t_max)
+sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline, t_max)
 
 #' Perform only simulation with migration, no birth/death feedback
 sim_migration_only <- function(n0, migration_baseline, carrying_capacity, k_dij, t_max) .Call(wrap__sim_migration_only, n0, migration_baseline, carrying_capacity, k_dij, t_max)
