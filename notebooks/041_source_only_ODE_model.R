@@ -32,7 +32,8 @@ ode_source_only <- function(growth_rate, carrying_capacity, n0, migration_baseli
         # mj <- (m0 * log1p(exp(y - cc))) / (log(2) * cc)
         # dN <- dN + (sum(mj * y) - mj * y) - mj * y * (n_len - 1)
 
-        list(dN, dM = (sum(mj * y) - mj * y) - mj * y * (n_len - 1))
+        list(dN)
+        # list(dN, dM = (sum(mj * y) - mj * y) - mj * y * (n_len - 1))
       })
     }
   ) %>%
