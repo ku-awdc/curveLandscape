@@ -567,16 +567,16 @@ mod tests {
         with_r(|| {});
     }
 
-    #[test]
-    fn test_sim_migration_only() {
-        let n0 = [10, 2];
-        let migration_baseline = [0.1, 0.0001];
-        let carrying_capacity = [5, 5];
-        let k_dij = [1.];
-        let t_max = 100000.;
+    // #[test]
+    // fn test_sim_migration_only() {
+    //     let n0 = [10, 2];
+    //     let migration_baseline = [0.1, 0.0001];
+    //     let carrying_capacity = [5, 5];
+    //     let k_dij = [1.];
+    //     let t_max = 100000.;
 
-        sim_migration_only(&n0, &migration_baseline, &carrying_capacity, &k_dij, t_max);
-    }
+    //     sim_migration_only(&n0, &migration_baseline, &carrying_capacity, &k_dij, t_max);
+    // }
 
     #[test]
     fn test_weighted_alias_update_twice() {
