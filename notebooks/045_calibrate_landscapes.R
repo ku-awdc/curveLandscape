@@ -166,8 +166,21 @@ calib_output %>%
         sum(area_high + area_low + area_none)
       })
       total
-    })
-  ) %>%
+    }),
+    naive_grid = pmap(select(., naive_grid, alpha_High, alpha_Low, alpha_None), \(naive_grid, alpha_High, alpha_Low, alpha_None) {
+      naive_grid$area <- naive_grid$Area %>% as.numeric()
+      with(naive_grid, {
+        area_high <- alpha_High * Prop_High * area
+        area_low <- alpha_Low * Prop_Low * area
+        area_none <- alpha_None * Prop_None * area
+        naive_grid$cc <- area_high + area_low + area_none
+        naive_grid
+      })
+    }),
+  ) ->
+  calib_output
+
+calib_output %>% 
   glimpse() %>%
   identity() %>%
   {
@@ -178,3 +191,10 @@ calib_output %>%
       ggpubr::theme_pubclean() +
       NULL
   }
+#'
+#' 
+#' 
+calib_output$naive_grid[[4]]$cc %>% density() %>% plot()
+calib_output$naive_grid[[25]]$cc %>% density() %>% plot()
+
+calib_output$naive_grid[[50]]$cc %>% density() %>% plot()
