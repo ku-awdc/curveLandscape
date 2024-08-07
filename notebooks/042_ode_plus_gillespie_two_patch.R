@@ -115,6 +115,7 @@ deter_output %>%
       #   )
       # ) +
       # expand_limits(y = c(0, 2, 8)) +
+      ylim(c(NA, 10)) +
       theme_bw(base_size = 15) +
       # ggpubr::theme_transparent() +
       theme(legend.position = "bottom") +
@@ -122,6 +123,15 @@ deter_output %>%
   }
 
 
+fs::dir_create("figures")
+ggsave(
+  filename = "figures/042_ssa_ode_birth_death_migration_aio_ycutoff_10.svg",
+  device = svglite::svglite,
+  # scaling = 3,
+  scale = 1.9
+  # width = 2*4.27,
+  # height = 2.5
+)
 
 #' Filter the data as to only be `t_max = 1`
 
@@ -161,8 +171,19 @@ deter_output %>%
         linetype = "dotdash",
         linewidth = 0.3
       ) +
-      expand_limits(y = c(0, 2, 8)) +
+      ylim(c(NA, 10)) +
       theme_bw(base_size = 15) +
       theme(legend.position = "bottom") +
       NULL
   }
+
+  fs::dir_create("figures")
+  ggsave(
+    filename = "figures/042_ssa_ode_birth_death_migration_aio_zoom_ycutoff_10.svg",
+    device = svglite::svglite,
+    # scaling = 3,
+    scale = 1.9
+    # width = 2*4.27,
+    # height = 2.5
+  )
+  
