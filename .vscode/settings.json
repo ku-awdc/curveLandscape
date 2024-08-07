@@ -1,8 +1,4 @@
 {
-    // "workbench.colorCustomizations": {
-    //     "[Night Owl (No Italics)]": {
-    //     }
-    // },
     "editor.tokenColorCustomizations": {
         "[Night Owl Light (No Italics)]": {
             "comments": "#b58900",
@@ -24,6 +20,4 @@
         "parms"
     ],
     "rust-analyzer.completion.limit": null,
-    
-    // "workbench.fontAliasing": "antialiased"
 }
