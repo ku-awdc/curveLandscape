@@ -104,7 +104,7 @@ length(dk_grid_cells_with_only_none)
 dk_grid %>% length()
 dk_grid_habitat %>% nrow()
 dk_grid_habitat[-dk_grid_cells_with_only_none, ] %>% nrow()
-new_patches %>% nrow()
+# new_patches %>% nrow()
 
 dk_grid_reduced <- dk_grid_habitat[-dk_grid_cells_with_only_none, ]
 
@@ -443,16 +443,23 @@ points |>
       voronois
 
       tibble(geometry = voronois) |>
-        st_as_sf(crs = st_crs(x)) |>
+        st_as_sf(crs = st_crs(x), sf_column_name = "geometry") |>
         mutate(geometry = st_intersection(geometry, patches |> filter(PatchID == pid))) |>
         mutate(PatchID = pid, MainPatch = pid, SubPatch = 1:n(), Area = st_area(geometry)) ->
       rv
     }
+    # browser()
+    # print(rv %>% st_crs())
+    # print(rv %>% st_crs() %>% length())
     rv
   }) |>
   bind_rows() |>
   mutate(PatchID = str_c(MainPatch, "_", SubPatch)) ->
 new_patches
+
+st_crs(new_patches)
+
+new_patches %>% st_area()
 
 ggplot() +
   geom_sf(data = load_map("DK032"), fill = NA) +

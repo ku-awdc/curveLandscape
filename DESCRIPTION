@@ -13,3 +13,6 @@ Imports:
     magrittr
 Config/rextendr/version: 0.3.1.9000
 SystemRequirements: Cargo (Rust's package manager), rustc
+Depends: 
+    R (>= 2.10)
+LazyData: true
