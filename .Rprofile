@@ -9,3 +9,6 @@ if (interactive()) {
   library("remotes")
   library("rextendr")
 }
+
+
+Sys.setenv("HEXSCAPE_STORAGE"="~/Documents/GitHub/hexscape_cache")
