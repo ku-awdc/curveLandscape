@@ -13,8 +13,143 @@ load_corine("DK032") |>
     TRUE ~ "Non"
   )) |>
   group_by(NUTS, Habitat) |>
-  summarise(Area = sum(Area), Area_simplified = sum(Area_simplified), geometry = st_union(geometry), .groups = "drop") ->
+  summarise(
+    Area = sum(Area), Area_simplified = sum(Area_simplified),
+    geometry = st_union(geometry), .groups = "drop"
+  ) ->
 habitat
+
+habitat
+
+
+dk_patches <- load_map("DK032")
+
+ggplot() +
+  geom_sf(data = dk_patches, fill = NA) +
+  coord_sf(expand = FALSE) +
+  ggpubr::theme_pubr() +
+  NULL
+
+dk_grid <- st_make_grid(
+  dk_patches,
+  cellsize = units::as_units(5, "km^2")
+) %>%
+  st_intersection(dk_patches)
+
+dk_grid
+ggplot() +
+  geom_sf(data = dk_patches, fill = NA) +
+  geom_sf(data = dk_grid, fill = NA) +
+  coord_sf(expand = FALSE) +
+  ggpubr::theme_pubr() +
+  NULL
+
+habitat
+
+#' Assign proportion of high, low, and none to each cell in the grid.
+#'
+is_it_extensive <- TRUE
+dk_grid %>%
+  st_sf() %>%
+  mutate(Area = st_area(geometry) %>% units::set_units(value = "km^2")) %>%
+  bind_cols(
+    area_high = st_interpolate_aw(
+      habitat[1, ] %>% select(Area),
+      dk_grid,
+      extensive = is_it_extensive,
+      keep_NA = TRUE
+    ) %>%
+      st_drop_geometry() %>%
+      rename(Area_High = Area),
+    area_low = st_interpolate_aw(
+      habitat[2, ] %>% select(Area),
+      dk_grid,
+      extensive = is_it_extensive,
+      keep_NA = TRUE
+    ) %>%
+      st_drop_geometry() %>%
+      rename(Area_Low = Area),
+    st_interpolate_aw(
+      habitat[3, ] %>% select(Area),
+      dk_grid,
+      extensive = is_it_extensive,
+      keep_NA = TRUE
+    ) %>%
+      st_drop_geometry() %>%
+      rename(Area_None = Area)
+  ) %>%
+  replace_na(list(Area_High = 0, Area_Low = 0, Area_None = 0)) %>%
+  mutate(
+    Area_km2 = as.numeric(Area),
+    Prop_High = Area_High / Area_km2,
+    Prop_Low = Area_Low / Area_km2,
+    Prop_None = Area_None / Area_km2,
+    Area_High = NULL,
+    Area_Low = NULL,
+    Area_None = NULL,
+    Area_km2 = NULL
+  ) %>%
+  print(n = 50) ->
+dk_grid_habitat
+
+dk_grid_habitat
+
+dk_grid_cells_with_only_none <- which(
+  abs(dk_grid_habitat$Prop_High + dk_grid_habitat$Prop_Low) <= sqrt(.Machine$double.eps)
+)
+
+dk_grid_cells_with_only_none
+length(dk_grid_cells_with_only_none)
+
+dk_grid %>% length()
+dk_grid_habitat %>% nrow()
+dk_grid_habitat[-dk_grid_cells_with_only_none, ] %>% nrow()
+new_patches %>% nrow()
+
+dk_grid_reduced <- dk_grid_habitat[-dk_grid_cells_with_only_none, ]
+
+upper_prop_limit <- dk_grid_reduced %>%
+  st_drop_geometry() %>%
+  summarise(across(c(Prop_High, Prop_Low, Prop_None), max)) %>%
+  as.list()
+
+
+ggplot() +
+  geom_sf(data = dk_patches, fill = NA) +
+  geom_sf(
+    data = dk_grid_reduced, aes(fill = Prop_High)
+  ) +
+  scale_fill_viridis_c() +
+  coord_sf(expand = FALSE) +
+  ggpubr::theme_pubclean()
+ggplot() +
+  geom_sf(data = dk_patches, fill = NA) +
+  geom_sf(
+    data = dk_grid_reduced, aes(fill = Prop_Low)
+  ) +
+  scale_fill_viridis_c(end = upper_prop_limit$Prop_Low) +
+  coord_sf(expand = FALSE) +
+  ggpubr::theme_pubclean()
+ggplot() +
+  geom_sf(data = dk_patches, fill = NA) +
+  geom_sf(
+    data = dk_grid_reduced, aes(fill = Prop_None)
+  ) +
+  scale_fill_viridis_c(end = upper_prop_limit$Prop_None) +
+  coord_sf(expand = FALSE) +
+  ggpubr::theme_pubclean()
+
+load_corine("DK032") |>
+  mutate(Habitat = case_when(
+    CLC_Label2 == "Forests" ~ "High",
+    CLC_Label2 == "Scrub and/or herbaceous vegetation associations" ~ "Low",
+    TRUE ~ "Non"
+  )) |>
+  group_by(NUTS) |>
+  summarise(Area = sum(Area), Area_simplified = sum(Area_simplified), geometry = st_union(geometry), .groups = "drop") ->
+habitat_nuts
+
+
 
 ggplot(habitat, aes(fill = Habitat)) +
   geom_sf() +
@@ -30,6 +165,12 @@ ggplot(habitat, aes(fill = Habitat)) +
   theme(legend.position = "bottom") +
   NULL
 
+habitat
+
+#' Create the "naive" landscape
+#'
+habitat
+
 fs::dir_create("figures")
 ggsave(
   filename = "figures/044_DK_corine_raw.svg",
@@ -40,18 +181,19 @@ ggsave(
   # height = 2.5
 )
 
+habitat
 
 
 ggplot(habitat, aes(fill = Habitat)) +
   geom_sf() +
   coord_sf(xlim = c(9, 9.5), ylim = c(54.8, 55), crs = "WGS84", expand = FALSE) +
-    scale_fill_manual(
-  values = c(
-    "High" = "forestgreen",
-    "Low" = "wheat",
-    "Non" = "grey"
-  )
-) +
+  scale_fill_manual(
+    values = c(
+      "High" = "forestgreen",
+      "Low" = "wheat",
+      "Non" = "grey"
+    )
+  ) +
   ggpubr::theme_pubr() +
   theme(legend.position = "bottom") +
   NULL
@@ -83,8 +225,7 @@ pts
 ggplot() +
   geom_sf(data = habitat, aes(fill = Habitat)) +
   geom_sf(data = pts, size = 0.1) +
-  coord_sf(xlim = c(9, 9.5), ylim = c(54.8, 55), crs = "WGS84", expand = FALSE) + 
-
+  coord_sf(xlim = c(9, 9.5), ylim = c(54.8, 55), crs = "WGS84", expand = FALSE) +
   scale_fill_manual(
     values = c(
       "High" = "forestgreen",
@@ -92,7 +233,7 @@ ggplot() +
       "Non" = "grey"
     )
   ) +
-    ggpubr::theme_pubr() +
+  ggpubr::theme_pubr() +
   theme(legend.position = "bottom") +
   NULL
 
@@ -251,6 +392,7 @@ habitat |>
 ggplot() +
   geom_sf(data = load_map("DK032")) +
   geom_sf(data = patches, fill = "blue")
+patches
 ggplot(habitat, aes(fill = Habitat)) +
   geom_sf() +
   theme(legend.pos = "none")
@@ -313,9 +455,9 @@ points |>
 new_patches
 
 ggplot() +
-  geom_sf(data = load_map("DK032")) +
+  geom_sf(data = load_map("DK032"), fill = NA) +
   geom_sf(data = new_patches, fill = "light blue") +
-coord_sf(expand = FALSE) +
+  coord_sf(expand = FALSE) +
   ggpubr::theme_pubr() +
   theme(legend.position = "bottom") +
   NULL
@@ -330,7 +472,29 @@ ggsave(
   # height = 2.5
 )
 
-
-new_patches
+dk_grid_reduced
+new_patches %>%
+  glimpse()
 
 saveRDS(new_patches, "boar_centric_patches.rds")
+
+CC_pr_area <- 10
+
+sum((new_patches$Area %>% set_units("km^2") %>% as.numeric())/5 * CC_pr_area)
+
+dk_grid_reduced %>%
+  st_drop_geometry() %>%
+  mutate(Area = as.numeric(Area)) %>%
+  summarise(
+    total_cc = sum(
+      1 * CC_pr_area * Prop_High +
+        1 * CC_pr_area * Prop_Low / 2 +
+        0
+    )
+  )
+
+
+
+new_patches$Area %>%
+  units::set_units("km^2") %>%
+  hist.default(breaks = 20)
