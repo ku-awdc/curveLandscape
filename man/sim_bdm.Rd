@@ -14,7 +14,7 @@ sim_bdm(
 )
 }
 \arguments{
-\item{migration_baseline}{Double that is m_0 in the formulas. Is normalised
+\item{migration_baseline}{Double that is m_0 in the formulas, and is normalised
 by (n-1) internally.}
 }
 \description{
