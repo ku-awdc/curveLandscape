@@ -26,7 +26,7 @@ ode_source_only <- function(growth_rate, carrying_capacity, n0, migration_baseli
         mj <- (
           m0 * pmax(y - (cc - 1), 0)
         ) / cc
-        dN <- dN + (sum(mj * y) - mj * y) - mj * y * (n_len - 1)
+        dN <- dN + sum(mj * y) - mj * y * n_len
 
         # APPROACH: SMOOTH OR LogSumExp
         # mj <- (m0 * log1p(exp(y - cc))) / (log(2) * cc)
