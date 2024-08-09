@@ -9,7 +9,7 @@ expand_grid(Replicate = seq_len(10L), Patch = seq_len(50L), Obs = seq_len(100L))
   continuous_data
  
 ## Assume we know the data at time=0 (I guess this is in the model output?)
-continous_data |>
+continuous_data |>
   group_by(Replicate, Patch) |>
   arrange(Time) |>
   slice(1L) |>
