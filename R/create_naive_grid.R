@@ -1,7 +1,6 @@
 #' @param cellsize in km^2
 #' @inheritParams sf::st_make_grid
 create_naive_grid <- function(cellsize, ...) {
-
   dk_patches <- hexscape::load_map("DK032")
 
   # ggplot() +
@@ -16,6 +15,10 @@ create_naive_grid <- function(cellsize, ...) {
     ...
   ) %>%
     st_intersection(dk_patches)
+  
+  # sometimes we get a `POINT`, and we don't want that.
+  dk_grid <- dk_grid[(st_geometry_type(dk_grid) == "POLYGON") |
+    st_geometry_type(dk_grid) == "MULTIPOLYGON", ]
 
   # dk_grid
   # ggplot() +
@@ -28,7 +31,7 @@ create_naive_grid <- function(cellsize, ...) {
 
   #' Assign proportion of high, low, and none to each cell in the grid.
   #'
-  
+
   # note: the variable `habitat_map` comes from the package
   is_it_extensive <- TRUE
   dk_grid %>%
