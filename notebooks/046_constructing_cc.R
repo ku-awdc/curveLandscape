@@ -11,14 +11,24 @@ library("pbapply")
 #   hist(breaks = 25, probability=TRUE)
 
 
+naive_grid5 <- create_naive_grid(5) %>% 
+  mutate(
+    cc = as.numeric(Area) * 0.75 * Prop_High + 
+      as.numeric(Area) * 0.25 * Prop_Low
+  ) %>% 
+  # summarise(total_cc = sum(cc)) %>% 
+  identity()
+
+
+
 dk_patches <- load_map("DK032")
 ggplot() +
-  geom_sf(data = habitat_map, aes(fill = Habitat)) +
+  # geom_sf(data = habitat_map, aes(fill = Habitat)) +
   geom_sf(data = dk_patches, fill = NA, linetype = "dotted") +
-  geom_sf(data = create_habitat_centred(10), fill = NA) +
+  geom_sf(data = boar_centric_patches, fill = NA) +
   geom_sf(
     data =
-      create_naive_grid(6.5), fill = NA
+      create_naive_grid(5), fill = NA
   ) +
   scale_fill_manual(
     values = c(
@@ -94,7 +104,8 @@ calibrate_naive_grid <- function(naive_grid) {
         })
 
         abs(
-          (total - pmax(0, target_pop_area * alpha[1]))
+          # (total - pmax(0, target_pop_area * alpha[1]))
+          (total - pmax(0, target_pop_area * 1 / 2.5))
         )
       })
     }
@@ -107,7 +118,7 @@ calibrate_naive_grid(create_naive_grid(20))
 calibrate_naive_grid(create_naive_grid(10))
 
 calib_output <- tibble(
-  cellsize_km2 = 1:50
+  cellsize_km2 = 5:50
 ) %>%
   mutate(
     result = map(
@@ -169,7 +180,7 @@ calib_output %>%
       sum((habitat_islands %>%
         st_area() %>%
         set_units("km^2") %>%
-        as.numeric()) * alpha_High)
+        as.numeric()) * 1 / 2.5)
     }),
     total_naive_grid = pmap_dbl(select(., naive_grid, alpha_High, alpha_Low, alpha_None), \(naive_grid, alpha_High, alpha_Low, alpha_None) {
       naive_grid$area <- naive_grid$Area %>% as.numeric()
@@ -208,30 +219,68 @@ calib_output %>%
 #'
 #'
 #'
+calib_output$naive_grid[[1]]$cc %>%
+  density() %>%
+  plot()
+calib_output$naive_grid[[2]]$cc %>%
+  density() %>%
+  plot()
+
+calib_output$naive_grid[[5]]$cc %>%
+  density() %>%
+  plot()
+
 calib_output$naive_grid[[4]]$cc %>%
-  density() %>%
-  plot()
-calib_output$naive_grid[[25]]$cc %>%
-  density() %>%
-  plot()
+  zapsmall() %>%
+  {
+    table(. == 0)
+  }
 
-calib_output$naive_grid[[50]]$cc %>%
-  density() %>%
-  plot()
+calib_output$naive_grid[[4]]$cc %>% sum()
 
+calib_output$total_habitat_island[[4]]
 
 boar_centric_patches %>%
   glimpse()
 
+naive_grid5 <- create_naive_grid(5) %>%
+  mutate(area = Area %>% as.numeric())
+par_naive_grid5 <- calibrate_naive_grid(naive_grid5)
+naive_grid5 <- naive_grid5 %>%
+  mutate(cc = with(as.list(par_naive_grid5$par), {
+    area_high <- alpha_High * Prop_High * area
+    area_low <- alpha_Low * Prop_Low * area
+    area_none <- alpha_None * Prop_None * area
+    pmax(0, area_high + area_low + area_none)
+  }))
 
-ggplot() +
-  geom_sf(data = dk_patches, fill = NA) +
-  geom_sf(data = boar_centric_patches, fill = NA) +
-  # ggplot2::geom_sf_text(
-  #   data = boar_centric_patches,
-  #   aes(
-  #     geometry = st_centroid(geometry),
-  #     label = str_c(PatchID, ":", MainPatch, ":", SubPatch)
-  #   ),size = 0.9
-  # ) +
-  ggpubr::theme_pubclean()
+naive_grid5 %>%
+  mutate(is_empty = zapsmall(cc) == 0) %>%
+  identity() -> naive_grid5
+{
+  ggplot() +
+    geom_sf(data = dk_patches, fill = NA) +
+      # geom_sf(data = naive_grid5, aes(fill = is_empty)) +
+        geom_sf(data = naive_grid5 %>% filter(!is_empty), aes(fill = cc), alpha = .5) +
+    geom_sf(data = boar_centric_patches, fill = NA) +
+    # scale_fill_manual(values = list(
+    #   "TRUE" = "white",
+    #   "FALSE" = "forestgreen"
+    # )) +
+    scale_fill_viridis_c(direction = -1) +
+    coord_sf(expand = TRUE) +
+    ggpubr::theme_pubclean()
+}
+
+
+# ggplot() +
+#   geom_sf(data = dk_patches, fill = NA) +
+#   geom_sf(data = boar_centric_patches, fill = NA) +
+#   # ggplot2::geom_sf_text(
+#   #   data = boar_centric_patches,
+#   #   aes(
+#   #     geometry = st_centroid(geometry),
+#   #     label = str_c(PatchID, ":", MainPatch, ":", SubPatch)
+#   #   ),size = 0.9
+#   # ) +
+#   ggpubr::theme_pubclean()

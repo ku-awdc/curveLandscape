@@ -212,7 +212,7 @@ fn sim_bdm(
     n0: &[i32],
     birth_baseline: &[f64],
     death_baseline: &[f64],
-    carrying_capacity: &[i32],
+    carrying_capacity: &[f64],
     migration_baseline: f64,
     t_max: f64,
 ) -> Record {
@@ -228,7 +228,7 @@ fn sim_bdm(
 
     // FIXME: what's a better behavior pattern?
     // if n0 is all zero to begin with or carrying capacity is zero (thus propensity would be fully zero)
-    if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| *x == 0) {
+    if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| x.abs() <= 0.0001) {
         return record;
     }
 
@@ -236,9 +236,7 @@ fn sim_bdm(
     // let mut rng = SmallRng::seed_from_u64(20240805);
     let mut rng = SmallRng::from_entropy();
     let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
-    let cc =
-        as_u32(carrying_capacity).expect("`carrying_capacity` must be all non-negative integers");
-    let cc_double = cc.iter().map(|x| -> f64 { *x as _ }).collect_vec();
+    let cc = carrying_capacity;
 
     // migration baseline must be normalised based on number of patches
     let migration_baseline = if n_len == 1 {
@@ -279,7 +277,7 @@ fn sim_bdm(
 
     izip!(
         n.iter(),
-        cc_double.iter(),
+        cc.iter(),
         birth_baseline.iter(),
         death_baseline.iter(),
         birth_rate.iter_mut(),
@@ -404,21 +402,21 @@ fn sim_bdm(
 
         // update birth/death rate for the changed patch..
         let g_div_cc = g_div_cc_baseline[patch_id];
-        if n[patch_id] > cc[patch_id] {
+        if n[patch_id] as f64 > cc[patch_id] {
             birth_rate[patch_id] = death_baseline[patch_id];
             death_rate[patch_id] =
-                death_baseline[patch_id] + g_div_cc * (n[patch_id] as f64 - cc_double[patch_id]);
+                death_baseline[patch_id] + g_div_cc * (n[patch_id] as f64 - cc[patch_id]);
         } else {
             birth_rate[patch_id] =
-                death_baseline[patch_id] + g_div_cc * (cc_double[patch_id] - n[patch_id] as f64);
+                death_baseline[patch_id] + g_div_cc * (cc[patch_id] - n[patch_id] as f64);
             death_rate[patch_id] = death_baseline[patch_id];
         }
 
         // migration rate
         // APPROACH: wedge
-        migration_rate[patch_id] = ((n[patch_id] as f64 - (cc_double[patch_id] - 1.)).max(0.)
+        migration_rate[patch_id] = ((n[patch_id] as f64 - (cc[patch_id] - 1.)).max(0.)
             * migration_baseline)
-            / cc_double[patch_id];
+            / cc[patch_id];
 
         // TODO: APPROACH: smooth (untested)
         // let log2: f64 = 1_f64.ln();
@@ -441,22 +439,22 @@ fn sim_bdm(
 
             // update birth/death rate for the changed (target) patch..
             let g_div_cc = g_div_cc_baseline[target_patch_id];
-            if n[target_patch_id] > cc[target_patch_id] {
+            if n[target_patch_id] as f64 > cc[target_patch_id] {
                 birth_rate[target_patch_id] = death_baseline[target_patch_id];
                 death_rate[target_patch_id] = death_baseline[target_patch_id]
-                    + g_div_cc * (n[target_patch_id] as f64 - cc_double[target_patch_id]);
+                    + g_div_cc * (n[target_patch_id] as f64 - cc[target_patch_id]);
             } else {
                 birth_rate[target_patch_id] = death_baseline[target_patch_id]
-                    + g_div_cc * (cc_double[target_patch_id] - n[target_patch_id] as f64);
+                    + g_div_cc * (cc[target_patch_id] - n[target_patch_id] as f64);
                 death_rate[target_patch_id] = death_baseline[target_patch_id];
             }
 
             // migration rate
             // APPROACH: wedge
             migration_rate[target_patch_id] =
-                ((n[target_patch_id] as f64 - (cc_double[target_patch_id] - 1.)).max(0.)
+                ((n[target_patch_id] as f64 - (cc[target_patch_id] - 1.)).max(0.)
                     * migration_baseline)
-                    / cc_double[target_patch_id];
+                    / cc[target_patch_id];
 
             // TODO: APPROACH: smooth (untested)
             // let log2: f64 = 1_f64.ln();
@@ -588,7 +586,7 @@ mod tests {
         let n0 = [2];
         let birth_baseline = [4.];
         let death_baseline = [1.];
-        let carrying_capacity = [4];
+        let carrying_capacity = [4.];
         let migration_baseline = 0.1;
         let t_max = 10.;
         sim_bdm(

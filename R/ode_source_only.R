@@ -34,8 +34,7 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
           m0 * pmax(y - (cc - 1), 0)
         ) / cc
         dN <- dN + sum(mj * y) - mj * y * n_len
-
-
+        
         list(dN)
       })
     },
