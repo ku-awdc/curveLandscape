@@ -9,7 +9,6 @@ naive_grids <- map(patch_sizes, \(patch_sizes_in_km2)
 
 dk_patches <- hexscape::load_map("DK032")
 
-
 # ggplot() +
 #   geom_sf(data = dk_patches, fill = NA, linetype="dashed") +
 #   geom_sf(
@@ -83,7 +82,6 @@ naive_grids <- map(naive_grids, \(naive_grid) {
       cc = as.numeric(Area) * 0.75 * Prop_High +
         as.numeric(Area) * 0.25 * Prop_Low
     ) %>%
-    summarise(total_cc = sum(cc)) %>%
     identity()
 })
 
