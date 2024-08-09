@@ -16,12 +16,6 @@ all_grids <- bind_rows(
   .id = "landscape_type"
 )
 
-all_grids
-
-aggregated_patches$grid[[4]] %>%
-  print(n = Inf) %>%
-  summarise(sum(Capacity))
-
 all_grids %>%
   mutate(
     total_cc = grid %>% map_dbl(. %>% summarise(sum(Capacity)) %>% pull(1)),
