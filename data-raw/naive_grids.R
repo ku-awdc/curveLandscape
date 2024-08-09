@@ -3,7 +3,9 @@ devtools::load_all()
 
 patch_sizes <- c(1, 2, 5, 10, 25) # km^2
 
-naive_grids <- map(patch_sizes, \(patch_sizes_in_km2) create_naive_grid(patch_sizes_in_km2, square = FALSE))
+naive_grids <- map(patch_sizes, \(patch_sizes_in_km2) 
+  create_naive_grid(patch_sizes_in_km2, square = FALSE)
+)
 
 dk_patches <- hexscape::load_map("DK032")
 
@@ -89,7 +91,7 @@ naive_grids <- map(naive_grids, \(naive_grid) {
 naive_grids <- structure(
   list(
     set_patch_size = patch_sizes,
-    naive_grids = naive_grids
+    naive_grid = naive_grids
   )
 )
 
