@@ -70,6 +70,22 @@ ggplot() +
   theme(legend.position = "bottom") +
   NULL
 
+
+#' Add carrying capacity:
+
+# FIXME: add a check of the unit in Area
+
+naive_grids <- map(naive_grids, \(naive_grid) {
+  naive_grid %>%
+    mutate(
+      cc = as.numeric(Area) * 0.75 * Prop_High +
+        as.numeric(Area) * 0.25 * Prop_Low
+    ) %>%
+    summarise(total_cc = sum(cc)) %>%
+    identity()
+})
+
+
 naive_grids <- structure(
   list(
     set_patch_size = patch_sizes,
