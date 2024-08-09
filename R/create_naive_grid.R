@@ -39,7 +39,7 @@ create_naive_grid <- function(cellsize, ...) {
     mutate(Area = st_area(geometry) %>% units::set_units(value = "km^2")) %>%
     bind_cols(
       area_high = st_interpolate_aw(
-        habitat_map[1, ] %>% select(Area),
+        habitat_map[1, ] %>% select(Area = Area_simplified),
         dk_grid,
         extensive = is_it_extensive,
         keep_NA = TRUE
@@ -47,7 +47,7 @@ create_naive_grid <- function(cellsize, ...) {
         st_drop_geometry() %>%
         rename(Area_High = Area),
       area_low = st_interpolate_aw(
-        habitat_map[2, ] %>% select(Area),
+        habitat_map[2, ] %>% select(Area = Area_simplified),
         dk_grid,
         extensive = is_it_extensive,
         keep_NA = TRUE
@@ -55,7 +55,7 @@ create_naive_grid <- function(cellsize, ...) {
         st_drop_geometry() %>%
         rename(Area_Low = Area),
       st_interpolate_aw(
-        habitat_map[3, ] %>% select(Area),
+        habitat_map[3, ] %>% select(Area = Area_simplified),
         dk_grid,
         extensive = is_it_extensive,
         keep_NA = TRUE
