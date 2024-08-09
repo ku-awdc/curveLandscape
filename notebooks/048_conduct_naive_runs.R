@@ -15,6 +15,8 @@ all_grids <- bind_rows(
   .id = "landscape_type"
 )
 
+all_grids
+
 aggregated_patches$grid[[4]] %>%
   print(n = Inf) %>%
   summarise(sum(Capacity))
@@ -27,14 +29,16 @@ all_grids %>%
     #     summarise(sum(abs(zapsmall(Capacity)) <= 0.00001)) %>% pull(1))
   ) -> all_grids_stats
 
-all_grids_stats %>% 
-  select(-grid) %>% 
-  pivot_wider(values_from = set_patch_size:n_len, names_from = landscape_type) %>% 
-  unnest() %>% 
-  identity() %>% 
-  print() %>% 
-  # tinytable::tt(theme = "void")  %>% 
-  # print("typst") %>% 
+all_grids_stats
+
+all_grids_stats %>%
+  select(-grid) %>%
+  pivot_wider(values_from = set_patch_size:n_len, names_from = landscape_type) %>%
+  unnest() %>%
+  identity() %>%
+  print() %>%
+  # tinytable::tt(theme = "void")  %>%
+  # print("typst") %>%
   identity()
 
 
