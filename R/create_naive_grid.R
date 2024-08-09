@@ -2,7 +2,7 @@
 #' @inheritParams sf::st_make_grid
 create_naive_grid <- function(cellsize, ...) {
 
-  dk_patches <- load_map("DK032")
+  dk_patches <- hexscape::load_map("DK032")
 
   # ggplot() +
   #   geom_sf(data = dk_patches, fill = NA) +
