@@ -420,7 +420,7 @@ fn sim_bdm(
 
         // TODO: APPROACH: smooth (untested)
         // let log2: f64 = 1_f64.ln();
-        // migration_rate[patch_id] = ((n[patch_id] as f64 - cc_double[patch_id]).exp().ln_1p() * migration_baseline) / (cc_double[patch_id] * log2);
+        // migration_rate[patch_id] = ((n[patch_id] as f64 - cc[patch_id]).exp().ln_1p() * migration_baseline) / (cc[patch_id] * log2);
 
         // now we can update the new patch propensity
         propensity[patch_id] =
@@ -458,7 +458,7 @@ fn sim_bdm(
 
             // TODO: APPROACH: smooth (untested)
             // let log2: f64 = 1_f64.ln();
-            // migration_rate[target_patch_id] = ((n[target_patch_id] as f64 - cc_double[target_patch_id]).exp().ln_1p() * migration_baseline) / (cc_double[target_patch_id] * log2);
+            // migration_rate[target_patch_id] = ((n[target_patch_id] as f64 - cc[target_patch_id]).exp().ln_1p() * migration_baseline) / (cc[target_patch_id] * log2);
 
             // now we can update the new patch propensity
             propensity[target_patch_id] = (birth_rate[target_patch_id]
