@@ -1,10 +1,10 @@
 #' Birth, death, and migration ODE model.
-#' 
+#'
 #' Wedge and smooth refers to the presentence of a non-differentiability in the state-dependent migration rate.
-#' 
+#'
 #' The migration mechanism is only aware of the conditions in _source_. The
 #' destination patch is evenly distributed amongst all present patches.
-#' 
+#'
 #'
 #' @param migration_baseline Double, normalised internally by (n-1)
 #' @inheritParams deSolve::ode
@@ -34,7 +34,7 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
           m0 * pmax(y - (cc - 1), 0)
         ) / cc
         dN <- dN + sum(mj * y) - mj * y * n_len
-        
+
         list(dN)
       })
     },
@@ -43,11 +43,11 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
     unclass() %>%
     as_tibble() %>%
     pivot_longer(
-      matches("(N|d\\w+)"),
-      names_pattern = "(\\w+)\\.?N?(\\d+)",
-      names_to = c("metric", "id_patch"),
+      starts_with("N"),
+      names_pattern = "N(\\d+)",
+      names_to = "id_patch",
+      values_to = "N"
     ) %>%
-    pivot_wider(names_from = "metric", values_from = "value") %>%
     identity()
 }
 
@@ -84,10 +84,10 @@ ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration
     unclass() %>%
     as_tibble() %>%
     pivot_longer(
-      matches("(N|d\\w+)"),
-      names_pattern = "(\\w+)\\.?N?(\\d+)",
-      names_to = c("metric", "id_patch"),
+      starts_with("N"),
+      names_pattern = "N(\\d+)",
+      names_to = "id_patch",
+      values_to = "N"
     ) %>%
-    pivot_wider(names_from = "metric", values_from = "value") %>%
     identity()
 }
