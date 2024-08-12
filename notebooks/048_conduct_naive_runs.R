@@ -17,6 +17,17 @@ all_grids <- bind_rows(
 
 all_grids
 
+#' The map with 1km^2 doesn't look like it has 3k cells, but thus far, it looks like it.
+#' 
+all_grids$grid[[1]]$geometry %>% st_geometry_type() %>% table()
+all_grids$grid[[1]]$geometry[[1]] %>% unclass() %>% `[[`(1) %>% nrow()
+all_grids$grid[[1]]$geometry %>% st_area() %>% hist()
+
+ggplot() +
+  geom_sf(data=
+    all_grids$grid[[1]], fill = NA) +
+  NULL
+
 aggregated_patches$grid[[4]] %>%
   print(n = Inf) %>%
   summarise(sum(Capacity))
