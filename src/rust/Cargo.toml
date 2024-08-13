@@ -18,6 +18,7 @@ rand_distr = "0.4.3"
 # general dependencies
 itertools = "0.13.0"
 readonly = "0.2.12"
+derive_more = { version = "1.0.0", features = ["full"] }
 
 [dev-dependencies]
 extendr-engine = { git = "https://github.com/extendr/extendr.git" }

@@ -1,5 +1,5 @@
 use crate::{
-    simulation::{as_u32, Record},
+    simulation::{as_u32, PatchRecord},
     triangle_indexing::{get_row_col, get_total_number_of_elements},
 };
 
@@ -16,7 +16,7 @@ fn sim_migration_only(
     carrying_capacity: &[i32],
     k_dij: &[f64],
     t_max: f64,
-) -> Record {
+) -> PatchRecord {
     let n_len = n0.len();
     // assume: |vec(n0)| = |vec(m0)| = |vec(cc)|
     assert_eq!(n_len, migration_baseline.len());
@@ -38,13 +38,13 @@ fn sim_migration_only(
     assert_eq!(n.len(), n_len);
     let n = n.as_mut_slice(); // state variable
 
-    let mut record = Record::new(0);
+    let mut record = PatchRecord::new(0);
 
     // TODO: initial time should be a result of Exp(1), as to have previous time...
     let mut t = 0.0;
 
     // record initial state
-    record.add_initial_state(t, n0);
+    record.push_initial_state(t, n0);
 
     //TODO: make them into slices?
     let mut emigration = vec![0.; k_dij.len()];
