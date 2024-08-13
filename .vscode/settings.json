@@ -20,4 +20,5 @@
         "parms"
     ],
     "rust-analyzer.completion.limit": null,
+    "cSpell.language": "en-GB"
 }
