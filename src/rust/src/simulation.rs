@@ -218,7 +218,7 @@ fn sim_bd_only(
     // extensive output list
     let mut record = PatchRecord::new(0);
 
-    // FIXME: what's a better behavior pattern?
+    // FIXME: what's a better behaviour pattern?
     // if n0 is all zero to begin with or carrying capacity is zero (thus propensity would be fully zero)
     if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| *x == 0) {
         return record;
@@ -679,7 +679,7 @@ struct ScenarioRecords {
     patch_records: Vec<PatchRecord>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct WildSSAConfiguration {
     n0: Box<[u32]>,
     n_len: usize,
@@ -708,7 +708,7 @@ struct WildSSAInternalState {
     rng: SmallRng,
 }
 
-#[derive(Debug, Deref, DerefMut, AsRef, AsMut)]
+#[derive(Debug, Clone, Deref, DerefMut, AsRef, AsMut)]
 struct WildSSA {
     #[as_ref]
     #[as_mut]
@@ -721,6 +721,7 @@ struct WildSSA {
     initial_internal_state: Option<WildSSAInternalState>,
 }
 
+#[extendr]
 impl WildSSA {
     pub fn new(
         n0: &[i32],
@@ -864,31 +865,20 @@ impl WildSSA {
         .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, mig, prop, g_div_cc)| {
             // birth-rate / death-rate
             let n = n as f64;
-            // TODO: replace with `f_birth_death`
-            if n > cc {
-                *mu = mu0 + ((n - cc) * (beta0 - mu0)) / cc;
-                *beta = mu0
-            } else {
-                *mu = mu0;
-                *beta = mu0 + ((cc - n) * (beta0 - mu0)) / cc
-            };
+            f_birth_death_rate(n, beta0, mu0, cc, beta, mu, g_div_cc);
 
             // migration rate
             // APPROACH: wedge
             // TODO: replace with f_migration_wedge
-            *mig = ((n - (cc - 1.)).max(0.) * migration_baseline) / cc;
+            f_migration_wedge(n, *migration_baseline, cc, mig);
 
             // TODO: APPROACH: smooth (untested)
-            // TODO: replace with `f_migration_smooth`
-            // let log2: f64 = 1_f64.ln();
-            // *mig = ((n - cc).exp().ln_1p() * migration_baseline) / (cc * log2);
+            // f_migration_smooth(n, *migration_baseline, cc, mig);
 
             // TODO: debug assert if rates are positive..
             *prop = (*beta + *mu + *mig) * n;
             // dbg!(*mig);
             *total_propensity += *prop;
-
-            *g_div_cc = (beta0 - mu0) / cc;
         });
         self.which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
 
@@ -901,6 +891,29 @@ impl WildSSA {
             .insert(self.internal_state.clone());
     }
 
+    // fn generic_run_until(
+    //     mut self,
+    //     t_max: f64,
+    //     f_birth_rate: fn(f64, f64, f64, f64, &mut f64, &mut f64, &mut f64),
+    //     f_migration_rate: fn(f64, f64, f64, &mut f64),
+    //     recorder: &mut impl Recorder,
+    // ) {}
+    fn run_and_record_patch(&self, t_max: f64) -> PatchRecord {
+        let repetition = 0;
+        let mut patch_recorder = PatchRecord::new(repetition);
+        self.clone().run_until(t_max, &mut patch_recorder);
+        patch_recorder
+    }
+    fn run_and_record_population(&self, t_max: f64) -> PopulationRecord {
+        let repetition = 0;
+        let mut population_recorder = PopulationRecord::new(repetition);
+        self.clone().run_until(t_max, &mut population_recorder);
+        population_recorder
+    }
+}
+
+impl WildSSA {
+    #[inline(always)]
     fn run_until(mut self, t_max: f64, recorder: &mut impl Recorder) {
         assert!(self.current_time <= t_max);
 
