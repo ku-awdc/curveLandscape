@@ -675,10 +675,6 @@ fn sim_bdm(
     record
 }
 
-struct ScenarioRecords {
-    patch_records: Vec<PatchRecord>,
-}
-
 #[derive(Debug, Clone)]
 struct WildSSAConfiguration {
     n0: Box<[u32]>,
@@ -717,8 +713,6 @@ struct WildSSA {
     internal_state: WildSSAInternalState,
     // read-only
     configuration: WildSSAConfiguration,
-    /// (internal field) save the internal state for resetting
-    initial_internal_state: Option<WildSSAInternalState>,
 }
 
 #[extendr]
@@ -804,11 +798,9 @@ impl WildSSA {
             repetition: 0,
             rng: SmallRng::seed_from_u64(seed),
         };
-        let initial_internal_state = None;
         let mut uninitialised_self = Self {
             configuration,
             internal_state,
-            initial_internal_state,
         };
         uninitialised_self.reset();
         let initialised_self = uninitialised_self;
@@ -822,11 +814,6 @@ impl WildSSA {
     /// Does not alter the cached Random Number generator. Instead, it reuses it for later repetitions.
     ///
     pub fn reset(&mut self) {
-        // are initial internals cached?
-        if self.initial_internal_state.is_some() {
-            self.internal_state = self.initial_internal_state.as_ref().unwrap().clone();
-            return;
-        }
         let WildSSAConfiguration {
             n0: _,
             n_len: _,
@@ -883,12 +870,7 @@ impl WildSSA {
         self.which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
 
         // TODO: initial time should be a result of Exp(1), as to have previous time...
-        // let current_t = 0.0;
-
-        // cache the internals for later
-        let _ = self
-            .initial_internal_state
-            .insert(self.internal_state.clone());
+        self.current_time = 0.;
     }
 
     // fn generic_run_until(
@@ -898,17 +880,27 @@ impl WildSSA {
     //     f_migration_rate: fn(f64, f64, f64, &mut f64),
     //     recorder: &mut impl Recorder,
     // ) {}
-    fn run_and_record_patch(&self, t_max: f64) -> PatchRecord {
-        let repetition = 0;
-        let mut patch_recorder = PatchRecord::new(repetition);
-        self.clone().run_until(t_max, &mut patch_recorder);
-        patch_recorder
+
+    pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize) -> List {
+        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
+        List::from_iter((0..repetitions).map(|repetition| {
+            let mut patch_recorder = PatchRecord::new(repetition);
+            self.clone().run_until(t_max, &mut patch_recorder);
+
+            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
+            patch_recorder
+        }))
     }
-    fn run_and_record_population(&self, t_max: f64) -> PopulationRecord {
-        let repetition = 0;
-        let mut population_recorder = PopulationRecord::new(repetition);
-        self.clone().run_until(t_max, &mut population_recorder);
-        population_recorder
+
+    pub fn run_and_record_population(&self, t_max: f64, repetitions: usize) -> List {
+        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
+        List::from_iter((0..repetitions).map(|repetition| {
+            let mut population_recorder = PopulationRecord::new(repetition);
+            self.clone().run_until(t_max, &mut population_recorder);
+
+            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
+            population_recorder
+        }))
     }
 }
 
@@ -1166,6 +1158,8 @@ fn f_migration_wedge(n: f64, migration_baseline: f64, cc: f64, mig: &mut f64) {
     *mig = ((n - (cc - 1.)).max(0.) * migration_baseline) / cc;
 }
 
+//TODO: this `f_migration_smooth` is not used anywhere
+
 #[inline(always)]
 fn f_migration_smooth(n: f64, migration_baseline: f64, cc: f64, mig: &mut f64) {
     let log2: f64 = 1_f64.ln();
@@ -1194,6 +1188,7 @@ extendr_module! {
     // fn update_migration_only;
     // fn update_birth_death_and_migration;
 
+    impl WildSSA;
 }
 
 #[cfg(test)]

@@ -42,5 +42,23 @@ get_linear_id <- function(i, j, n) .Call(wrap__get_linear_id, i, j, n)
 #' Return the total number of elements in lower-triangular matrix (without diagonal)
 get_total_number_of_elements <- function(n) .Call(wrap__get_total_number_of_elements, n)
 
+get_habitat_island_ids <- function(neighbourhood) .Call(wrap__get_habitat_island_ids, neighbourhood)
+
+WildSSA <- new.env(parent = emptyenv())
+
+WildSSA$new <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline, seed) .Call(wrap__WildSSA__new, n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline, seed)
+
+WildSSA$reset <- function() invisible(.Call(wrap__WildSSA__reset, self))
+
+WildSSA$run_and_record_patch <- function(t_max, repetitions) .Call(wrap__WildSSA__run_and_record_patch, self, t_max, repetitions)
+
+WildSSA$run_and_record_population <- function(t_max, repetitions) .Call(wrap__WildSSA__run_and_record_population, self, t_max, repetitions)
+
+#' @export
+`$.WildSSA` <- function (self, name) { func <- WildSSA[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.WildSSA` <- `$.WildSSA`
+
 
 # nolint end
