@@ -26,7 +26,7 @@ for (id_grid in seq_along(all_landscapes_trans)) {
     ssa_source_only_wedge(
       n0 = pmin(grid$Capacity, 1) %>% as.integer(), # minimum
 
-      # n0 = ceiling(grid$Capacity) %>% as.integer(), # eq_cc
+      n0 = ceiling(grid$Capacity) %>% as.integer(), # eq_cc
       # n0 = pmax(0, ceiling(grid$Capacity - 1)) %>% as.integer(), # lt_cc
       # n0 = pmax(0, ceiling(grid$Capacity + 1)) %>% as.integer(), # gt_cc
 

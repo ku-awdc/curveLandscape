@@ -251,155 +251,6 @@ struct WildSSA {
     configuration: WildSSAConfiguration,
 }
 
-#[extendr]
-impl WildSSA {
-    pub fn new(
-        n0: &[i32],
-        birth_baseline: &[f64],
-        death_baseline: &[f64],
-        carrying_capacity: &[f64],
-        migration_baseline: f64,
-    ) -> Self {
-        assert!(!n0.is_empty());
-        let n_len = n0.len();
-        assert_eq!(n_len, birth_baseline.len());
-        assert_eq!(birth_baseline.len(), death_baseline.len());
-        assert_eq!(death_baseline.len(), carrying_capacity.len());
-
-        assert!(migration_baseline.is_sign_positive());
-
-        // FIXME: what's a better behaviour pattern?
-        // if n0 is all zero to begin with or carrying capacity is zero (thus propensity would be fully zero)
-        if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| x.abs() <= 0.0001) {
-            panic!("all are initialised to 0 or carrying capacity is all 0");
-        }
-
-        let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
-        let n0: Box<[_]> = n0.into();
-
-        // migration baseline must be normalised based on number of patches
-        let migration_baseline = if n_len == 1 {
-            // no migration can happen, set to zero.
-            0.
-        } else {
-            migration_baseline / (n_len - 1) as f64
-        };
-        debug_assert!(migration_baseline.is_finite());
-
-        // initialize state
-        let n = n0.clone();
-        let birth_baseline: Box<[_]> = birth_baseline.into();
-        let death_baseline: Box<[_]> = death_baseline.into();
-        let carrying_capacity: Box<[_]> = carrying_capacity.into();
-        let migration_baseline = migration_baseline.into();
-
-        let mut birth_rate = birth_baseline.clone();
-        birth_rate.fill(0.);
-
-        let mut death_rate = death_baseline.clone();
-        death_rate.fill(0.);
-
-        let mut migration_rate = death_rate.clone();
-        // `death_rate` is already filled with 0_f64
-
-        // in propensity [(birth rate + death rate + migration_rate(source)) * count, ...]
-        let mut propensity = birth_rate.clone();
-
-        let mut g_div_cc_baseline = death_baseline.clone();
-        // `death_baseline` is already filled with 0_f64
-
-        let mut total_propensity = 0.;
-        izip!(
-            n.iter(),
-            carrying_capacity.iter(),
-            birth_baseline.iter(),
-            death_baseline.iter(),
-            birth_rate.iter_mut(),
-            death_rate.iter_mut(),
-            migration_rate.iter_mut(),
-            propensity.iter_mut(),
-            g_div_cc_baseline.iter_mut(),
-        )
-        .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, mig, prop, g_div_cc)| {
-            // birth-rate / death-rate
-            let n = n as f64;
-            f_birth_death_rate(n, beta0, mu0, cc, beta, mu, g_div_cc);
-
-            // migration rate
-            // APPROACH: wedge
-            // TODO: replace with f_migration_wedge
-            f_migration_wedge(n, migration_baseline, cc, mig);
-
-            // TODO: APPROACH: smooth (untested)
-            // f_migration_smooth(n, *migration_baseline, cc, mig);
-
-            // TODO: debug assert if rates are positive..
-            *prop = (*beta + *mu + *mig) * n;
-            // dbg!(*mig);
-            total_propensity += *prop;
-        });
-        let which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
-
-        // TODO: initial time should be a result of Exp(1), as to have previous time...
-        let current_time = 0.;
-        Self {
-            internal_state: WildSSAInternalState {
-                n,
-                birth_rate,
-                death_rate,
-                migration_rate,
-                g_div_cc_baseline,
-                propensity,
-                total_propensity,
-                current_time,
-                which_patch_sampler,
-            },
-            configuration: WildSSAConfiguration {
-                n0,
-                n_len,
-                birth_baseline,
-                death_baseline,
-                carrying_capacity,
-                migration_baseline,
-            },
-        }
-    }
-
-    // fn generic_run_until(
-    //     mut self,
-    //     t_max: f64,
-    //     f_birth_rate: fn(f64, f64, f64, f64, &mut f64, &mut f64, &mut f64),
-    //     f_migration_rate: fn(f64, f64, f64, &mut f64),
-    //     recorder: &mut impl Recorder,
-    // ) {}
-
-    pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
-        let mut rng = SmallRng::seed_from_u64(seed);
-
-        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
-        List::from_iter((0..repetitions).map(|repetition| {
-            let mut patch_recorder = PatchRecord::new(repetition);
-            self.clone().run_until(t_max, &mut rng, &mut patch_recorder);
-
-            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
-            patch_recorder
-        }))
-    }
-
-    pub fn run_and_record_population(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
-        let mut rng = SmallRng::seed_from_u64(seed);
-        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
-        List::from_iter((0..repetitions).map(|repetition| {
-            let mut population_recorder = PopulationRecord::new(repetition);
-            self.clone()
-                .run_until(t_max, &mut rng, &mut population_recorder);
-
-            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
-            population_recorder
-        }))
-    }
-}
-
 impl WildSSA {
     #[inline(always)]
     fn run_until(mut self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
@@ -623,6 +474,159 @@ impl WildSSA {
 
         // add an event at `t_max` that is just the repeat of last state
         recorder.add_final_state(t_max, n.as_ref());
+    }
+}
+
+#[extendr]
+impl WildSSA {
+    pub fn new(
+        n0: &[i32],
+        birth_baseline: &[f64],
+        death_baseline: &[f64],
+        carrying_capacity: &[f64],
+        migration_baseline: f64,
+    ) -> Self {
+        assert!(!n0.is_empty());
+        let n_len = n0.len();
+        assert_eq!(n_len, birth_baseline.len());
+        assert_eq!(birth_baseline.len(), death_baseline.len());
+        assert_eq!(death_baseline.len(), carrying_capacity.len());
+
+        assert!(migration_baseline.is_sign_positive());
+
+        // FIXME: what's a better behaviour pattern?
+        // if n0 is all zero to begin with or carrying capacity is zero (thus propensity would be fully zero)
+        if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| x.abs() <= 0.0001) {
+            panic!("all are initialised to 0 or carrying capacity is all 0");
+        }
+
+        let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
+        let n0: Box<[_]> = n0.into();
+
+        // migration baseline must be normalised based on number of patches
+        let migration_baseline = if n_len == 1 {
+            // no migration can happen, set to zero.
+            0.
+        } else {
+            migration_baseline / (n_len - 1) as f64
+        };
+        debug_assert!(migration_baseline.is_finite());
+
+        // initialize state
+        let n = n0.clone();
+        let birth_baseline: Box<[_]> = birth_baseline.into();
+        let death_baseline: Box<[_]> = death_baseline.into();
+        let carrying_capacity: Box<[_]> = carrying_capacity.into();
+        let migration_baseline = migration_baseline.into();
+
+        let mut birth_rate = birth_baseline.clone();
+        birth_rate.fill(0.);
+
+        let mut death_rate = death_baseline.clone();
+        death_rate.fill(0.);
+
+        let mut migration_rate = death_rate.clone();
+        // `death_rate` is already filled with 0_f64
+
+        // in propensity [(birth rate + death rate + migration_rate(source)) * count, ...]
+        let mut propensity = birth_rate.clone();
+
+        let mut g_div_cc_baseline = death_baseline.clone();
+        // `death_baseline` is already filled with 0_f64
+
+        let mut total_propensity = 0.;
+        izip!(
+            n.iter(),
+            carrying_capacity.iter(),
+            birth_baseline.iter(),
+            death_baseline.iter(),
+            birth_rate.iter_mut(),
+            death_rate.iter_mut(),
+            migration_rate.iter_mut(),
+            propensity.iter_mut(),
+            g_div_cc_baseline.iter_mut(),
+        )
+        .for_each(|(&n, &cc, &beta0, &mu0, beta, mu, mig, prop, g_div_cc)| {
+            // birth-rate / death-rate
+            let n = n as f64;
+            f_birth_death_rate(n, beta0, mu0, cc, beta, mu, g_div_cc);
+
+            // migration rate
+            // APPROACH: wedge
+            // TODO: replace with f_migration_wedge
+            f_migration_wedge(n, migration_baseline, cc, mig);
+
+            // TODO: APPROACH: smooth (untested)
+            // f_migration_smooth(n, *migration_baseline, cc, mig);
+
+            // TODO: debug assert if rates are positive..
+            *prop = (*beta + *mu + *mig) * n;
+            // dbg!(*mig);
+            total_propensity += *prop;
+        });
+        let which_patch_sampler = WeightedIndex::new(propensity.as_ref()).unwrap();
+
+        // TODO: initial time should be a result of Exp(1), as to have previous time...
+        let current_time = 0.;
+        Self {
+            internal_state: WildSSAInternalState {
+                n,
+                birth_rate,
+                death_rate,
+                migration_rate,
+                g_div_cc_baseline,
+                propensity,
+                total_propensity,
+                current_time,
+                which_patch_sampler,
+            },
+            configuration: WildSSAConfiguration {
+                n0,
+                n_len,
+                birth_baseline,
+                death_baseline,
+                carrying_capacity,
+                migration_baseline,
+            },
+        }
+    }
+
+    // fn generic_run_until(
+    //     mut self,
+    //     t_max: f64,
+    //     f_birth_rate: fn(f64, f64, f64, f64, &mut f64, &mut f64, &mut f64),
+    //     f_migration_rate: fn(f64, f64, f64, &mut f64),
+    //     recorder: &mut impl Recorder,
+    // ) {}
+
+    pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
+        let mut rng = SmallRng::seed_from_u64(seed);
+
+        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
+        List::from_iter((0..repetitions).map(|repetition| {
+            let mut patch_recorder = PatchRecord::new(repetition);
+            self.clone().run_until(t_max, &mut rng, &mut patch_recorder);
+
+            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
+            patch_recorder
+        }))
+    }
+
+    pub fn run_and_record_population(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
+        List::from_iter((0..repetitions).map(|repetition| {
+            let mut population_recorder = PopulationRecord::new(repetition);
+            self.clone()
+                .run_until(t_max, &mut rng, &mut population_recorder);
+
+            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
+            population_recorder
+        }))
+    }
+
+    fn internal_debug_display(&self) -> String {
+        format!("{self:#?}")
     }
 }
 

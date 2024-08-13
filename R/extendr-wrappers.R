@@ -10,29 +10,6 @@
 #' @useDynLib curveLandscape, .registration = TRUE
 NULL
 
-#' Simulates a birth and death process that is density-dependent
-#'
-#'
-sim_bd_only <- function(n0, birth_baseline, death_baseline, carrying_capacity, t_max) .Call(wrap__sim_bd_only, n0, birth_baseline, death_baseline, carrying_capacity, t_max)
-
-sim_bd_only_many <- function() invisible(.Call(wrap__sim_bd_only_many))
-
-#' Simulates birth, death and migration process of a multi-patch system.
-#'
-#' @param migration_baseline Double that is m_0 in the formulas and is normalised
-#' by (n-1) internally.
-#'
-#' @details
-#'
-#' The migration-baseline must be normalised
-#'
-#'
-#'
-#' It is assumed that birth-rate exceeds death-rate, i.e. beta >= mu
-#'
-#'
-sim_bdm <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline, t_max) .Call(wrap__sim_bdm, n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline, t_max)
-
 #' Returns the row and column from a 0-indexed, column-wise linear index `k` for a square matrix of dimension `n` x `n`
 get_row_col <- function(k, n) .Call(wrap__get_row_col, k, n)
 
@@ -48,11 +25,11 @@ WildSSA <- new.env(parent = emptyenv())
 
 WildSSA$new <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline) .Call(wrap__WildSSA__new, n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline)
 
-WildSSA$reset <- function() invisible(.Call(wrap__WildSSA__reset, self))
-
 WildSSA$run_and_record_patch <- function(t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_patch, self, t_max, repetitions, seed)
 
 WildSSA$run_and_record_population <- function(t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_population, self, t_max, repetitions, seed)
+
+WildSSA$internal_debug_display <- function() .Call(wrap__WildSSA__internal_debug_display, self)
 
 #' @export
 `$.WildSSA` <- function (self, name) { func <- WildSSA[[name]]; environment(func) <- environment(); func }
