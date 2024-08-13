@@ -687,7 +687,6 @@ struct WildSSAConfiguration {
 
 #[derive(Debug, Clone)]
 struct WildSSAInternalState {
-    repetition: u32,
     // region: model state
     n: Box<[u32]>,
     birth_rate: Box<[f64]>,
@@ -701,7 +700,6 @@ struct WildSSAInternalState {
     // endregion
     current_time: f64,
     which_patch_sampler: WeightedIndex<f64>,
-    rng: SmallRng,
 }
 
 #[derive(Debug, Clone, Deref, DerefMut, AsRef, AsMut)]
@@ -723,7 +721,6 @@ impl WildSSA {
         death_baseline: &[f64],
         carrying_capacity: &[f64],
         migration_baseline: f64,
-        seed: u64,
     ) -> Self {
         assert!(!n0.is_empty());
         let n_len = n0.len();
@@ -795,8 +792,6 @@ impl WildSSA {
             g_div_cc_baseline,
             current_time: 0.,
             which_patch_sampler,
-            repetition: 0,
-            rng: SmallRng::seed_from_u64(seed),
         };
         let mut uninitialised_self = Self {
             configuration,
@@ -824,7 +819,6 @@ impl WildSSA {
         } = &self.configuration;
         // initialise the internals...
         let WildSSAInternalState {
-            ref mut repetition,
             ref n,
             ref mut birth_rate,
             ref mut death_rate,
@@ -834,10 +828,7 @@ impl WildSSA {
             ref mut total_propensity,
             current_time: _,
             which_patch_sampler: _,
-            // don't reset the `rng`..
-            rng: _,
         } = &mut self.internal_state;
-        *repetition += 1;
         izip!(
             n.iter(),
             carrying_capacity.iter(),
@@ -881,22 +872,26 @@ impl WildSSA {
     //     recorder: &mut impl Recorder,
     // ) {}
 
-    pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize) -> List {
+    pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
+        let mut rng = SmallRng::seed_from_u64(seed);
+
         // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
         List::from_iter((0..repetitions).map(|repetition| {
             let mut patch_recorder = PatchRecord::new(repetition);
-            self.clone().run_until(t_max, &mut patch_recorder);
+            self.clone().run_until(t_max, &mut rng, &mut patch_recorder);
 
             //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
             patch_recorder
         }))
     }
 
-    pub fn run_and_record_population(&self, t_max: f64, repetitions: usize) -> List {
+    pub fn run_and_record_population(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
+        let mut rng = SmallRng::seed_from_u64(seed);
         // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
         List::from_iter((0..repetitions).map(|repetition| {
             let mut population_recorder = PopulationRecord::new(repetition);
-            self.clone().run_until(t_max, &mut population_recorder);
+            self.clone()
+                .run_until(t_max, &mut rng, &mut population_recorder);
 
             //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
             population_recorder
@@ -906,7 +901,7 @@ impl WildSSA {
 
 impl WildSSA {
     #[inline(always)]
-    fn run_until(mut self, t_max: f64, recorder: &mut impl Recorder) {
+    fn run_until(mut self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
         assert!(self.current_time <= t_max);
 
         let WildSSAConfiguration {
@@ -918,7 +913,6 @@ impl WildSSA {
             migration_baseline,
         } = self.configuration;
         let WildSSAInternalState {
-            repetition: _,
             ref mut n,
             ref mut birth_rate,
             ref mut death_rate,
@@ -928,7 +922,6 @@ impl WildSSA {
             ref mut total_propensity,
             mut current_time,
             mut which_patch_sampler,
-            ref mut rng,
         } = self.internal_state;
         // record initial state
         // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
@@ -1211,7 +1204,6 @@ mod tests {
             death_baseline,
             carrying_capacity,
             migration_baseline,
-            20202020,
         );
 
         dbg!(&wild_ssa);
