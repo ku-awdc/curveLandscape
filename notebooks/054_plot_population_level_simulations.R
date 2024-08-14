@@ -131,7 +131,7 @@ wild_ssa_output %>%
 #   reps = 100
 # ) -> ssa_output
 
-
+naive_landscape$total_cc
 
 wild_ssa_output <- wild_ssa_output %>%
   bind_rows()
@@ -143,6 +143,11 @@ wild_ssa_output %>%
       aes(time, count, group = repetition) +
       geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
       labs(x = "time [years]") +
+      geom_hline(
+        aes(yintercept = naive_landscape$total_cc),
+        linetype = "dotted",
+        linewidth = 1.1
+      ) +
       # labs(caption = glue("Landscape type {landscape_type}, and total patches {n_len}")) +
       ggpubr::theme_pubclean(15) +
       # theme_light(15) +
