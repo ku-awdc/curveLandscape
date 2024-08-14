@@ -1,6 +1,7 @@
 devtools::load_all()
 
 all_landscapes_trans <- purrr::transpose(all_landscapes)
+# all_landscapes_trans <- purrr::transpose(all_landscapes[-c(1, 6),])
 
 
 # TODO: needs.. fixing...
@@ -70,14 +71,22 @@ repetitions <- 250
 t_max <- 25
 delta_t <- 1 / 12
 binned_time <- seq.default(from = 0, to = t_max, by = delta_t)
+pdf("figures/056_batch_run_everything_smooth.pdf")
 for (landscape in all_landscapes_trans) {
+  print("processing")
+  print(landscape$set_patch_size)
+
   with(landscape, {
     # browser()
     n0 <- grid$Capacity %>%
       round() %>%
       as.integer()
 
-    print(grid$Capacity)
+    p_landscape_caption <-
+      labs(caption = glue("Landscape type {landscape_type}, with patch-size {set_patch_size} km^2, and total patches {n_len}."))
+
+
+    # print(grid$Capacity)
     wild_ssa_model <- WildSSA$new(
       n0 = n0,
       birth_baseline = rep.int(4, times = n_len),
@@ -124,10 +133,12 @@ for (landscape in all_landscapes_trans) {
             linetype = "dotted",
             linewidth = 1.1
           ) +
+          labs(y = "Population count by replicate") + 
           labs(caption = glue("Landscape type {landscape_type}, with patch-size {set_patch_size} km^2, and total patches {n_len}.")) +
           ggpubr::theme_pubclean(15) +
           NULL
-      }
+      } -> p_binned_population_count
+    print(p_binned_population_count)
 
     #'
     #' # Binned and statistical bandwidth of each signal..
@@ -143,12 +154,13 @@ for (landscape in all_landscapes_trans) {
           geom_line(linetype = "dotdash", aes(time, ci_upper)) +
           # geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
           labs(x = "time [years]") +
+          labs(y = "Mean population count") + 
           geom_hline(
             aes(yintercept = total_cc),
             linetype = "dotted",
             linewidth = 1.1
           ) +
-          labs(caption = glue("Landscape type {landscape_type}, with patch-size {set_patch_size} km^2, and total patches {n_len}.")) +
+          p_landscape_caption +
           ggpubr::theme_pubclean(15) +
           # theme_light(15) +
           NULL
@@ -159,7 +171,7 @@ for (landscape in all_landscapes_trans) {
     #'
     #'
     if (FALSE) {
-      naive_landscape$total_cc
+      total_cc
 
       wild_ssa_output <- wild_ssa_output %>%
         bind_rows()
@@ -172,11 +184,11 @@ for (landscape in all_landscapes_trans) {
             geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
             labs(x = "time [years]") +
             geom_hline(
-              aes(yintercept = naive_landscape$total_cc),
+              aes(yintercept = total_cc),
               linetype = "dotted",
               linewidth = 1.1
             ) +
-            # labs(caption = glue("Landscape type {landscape_type}, and total patches {n_len}")) +
+            p_landscape_caption +
             ggpubr::theme_pubclean(15) +
             # theme_light(15) +
             NULL
@@ -205,15 +217,16 @@ for (landscape in all_landscapes_trans) {
       zapsmall(sum(wild_ode_output_population$time - binned_time)) == 0
     )
 
-    p_binned_stat_ssa_output +
+    print(p_binned_stat_ssa_output +
       geom_line(
         data = wild_ode_output_population,
         aes(time, population_count, color = "ODE"),
         linetype = "dotted"
       ) +
-      labs(color = NULL)
-
-    error_reps <- abs(binned_ssa_output - wild_ode_output_population$population_count)
+      labs(y = "Population count") +
+      theme(legend.position = "bottom") +
+      labs(color = NULL))
+    error_reps <- binned_ssa_output - wild_ode_output_population$population_count
 
     #' ## Binned pr repetition population count plot..
 
@@ -229,16 +242,18 @@ for (landscape in all_landscapes_trans) {
           aes(time, error_count, group = repetition) +
           geom_step(aes(alpha = error_count, color = repetition), show.legend = FALSE) +
           labs(x = "time [years]") +
-          geom_hline(
-            aes(yintercept = naive_landscape$total_cc),
-            linetype = "dotted",
-            linewidth = 1.1
-          ) +
-          # labs(caption = glue("Landscape type {landscape_type}, and total patches {n_len}")) +
+          labs(y = "Error pr. replicate on population count") +
+          # geom_hline(
+          #   aes(yintercept = total_cc),
+          #   linetype = "dotted",
+          #   linewidth = 1.1
+          # ) +
+          p_landscape_caption +
           ggpubr::theme_pubclean(15) +
           # theme_light(15) +
           NULL
-      }
+      } -> p_error_reps
+    print(p_error_reps)
 
     stat_error_reps <- summarised_binned_reps(error_reps, binned_time, repetitions = repetitions)
 
@@ -251,18 +266,17 @@ for (landscape in all_landscapes_trans) {
           geom_line(linetype = "dotdash", aes(time, ci_upper)) +
           # geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
           labs(x = "time [years]") +
-          geom_hline(
-            aes(yintercept = naive_landscape$total_cc),
-            linetype = "dotted",
-            linewidth = 1.1
-          ) +
-          # labs(caption = glue("Landscape type {landscape_type}, and total patches {n_len}")) +
+          labs(y = "Mean Error on Population Count") +
+          p_landscape_caption +
           ggpubr::theme_pubclean(15) +
           # theme_light(15) +
           NULL
-      }
+      } -> p_error_stat
+    print(p_error_stat)
   })
 }
 
-
+dev.off()
 NULL
+
+beepr::beep("complete")

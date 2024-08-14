@@ -1,9 +1,10 @@
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use extendr_api::{prelude::*, IntoRobj};
+#[allow(unused_imports)]
 use itertools::Itertools;
 use itertools::{izip, repeat_n};
 use rand::distributions::WeightedIndex;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, SeedableRng};
 
 /// Contains all the changes that occurred in the population on a patch and time level.
 ///
@@ -366,24 +367,24 @@ impl WildSSA {
 
             // migration rate
             // APPROACH: wedge
+            // unsafe {
+            //     f_migration_wedge(
+            //         n[patch_id] as _,
+            //         migration_baseline,
+            //         carrying_capacity[patch_id],
+            //         migration_rate.get_unchecked_mut(patch_id),
+            //     );
+            // }
+
+            // TODO: APPROACH: smooth (untested)
             unsafe {
-                f_migration_wedge(
+                f_migration_smooth(
                     n[patch_id] as _,
                     migration_baseline,
                     carrying_capacity[patch_id],
                     migration_rate.get_unchecked_mut(patch_id),
                 );
             }
-
-            // TODO: APPROACH: smooth (untested)
-            // unsafe {
-            //     f_migration_smooth(
-            //         n[patch_id] as _,
-            //         configuration.migration_baseline,
-            //         configuration.carrying_capacity[patch_id],
-            //         migration_rate.get_unchecked_mut(patch_id),
-            //     );
-            // }
 
             // now we can update the new patch propensity
             propensity[patch_id] =
@@ -415,24 +416,24 @@ impl WildSSA {
 
                 // migration rate
                 // APPROACH: wedge
+                // unsafe {
+                //     f_migration_wedge(
+                //         n[target_patch_id] as _,
+                //         migration_baseline,
+                //         carrying_capacity[target_patch_id],
+                //         migration_rate.get_unchecked_mut(target_patch_id),
+                //     );
+                // }
+
+                // TODO: APPROACH: smooth (untested)
                 unsafe {
-                    f_migration_wedge(
+                    f_migration_smooth(
                         n[target_patch_id] as _,
                         migration_baseline,
                         carrying_capacity[target_patch_id],
                         migration_rate.get_unchecked_mut(target_patch_id),
                     );
                 }
-
-                // TODO: APPROACH: smooth (untested)
-                // unsafe {
-                //     f_migration_smooth(
-                //         n[target_patch_id] as _,
-                //         configuration.migration_baseline,
-                //         configuration.carrying_capacity[target_patch_id],
-                //         migration_rate.get_unchecked_mut(target_patch_id),
-                //     );
-                // }
 
                 // now we can update the new patch propensity
                 propensity[target_patch_id] = (birth_rate[target_patch_id]
@@ -496,7 +497,8 @@ impl WildSSA {
 
         // FIXME: what's a better behaviour pattern?
         // if n0 is all zero to begin with or carrying capacity is zero (thus propensity would be fully zero)
-        if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| x.abs() <= 0.0001) {
+        // if n0.iter().all(|n| *n == 0) || carrying_capacity.iter().all(|x| x.abs() <= 0.0001) {
+        if n0.iter().all(|n| *n == 0) {
             panic!("all are initialised to 0 or carrying capacity is all 0");
         }
 
@@ -554,10 +556,10 @@ impl WildSSA {
             // migration rate
             // APPROACH: wedge
             // TODO: replace with f_migration_wedge
-            f_migration_wedge(n, migration_baseline, cc, mig);
+            // f_migration_wedge(n, migration_baseline, cc, mig);
 
             // TODO: APPROACH: smooth (untested)
-            // f_migration_smooth(n, *migration_baseline, cc, mig);
+            f_migration_smooth(n, migration_baseline, cc, mig);
 
             // TODO: debug assert if rates are positive..
             *prop = (*beta + *mu + *mig) * n;
@@ -660,7 +662,7 @@ fn f_migration_wedge(n: f64, migration_baseline: f64, cc: f64, mig: &mut f64) {
 
 #[inline(always)]
 fn f_migration_smooth(n: f64, migration_baseline: f64, cc: f64, mig: &mut f64) {
-    let log2: f64 = 1_f64.ln();
+    let log2: f64 = 1_f64.ln_1p();
     *mig = ((n - cc).exp().ln_1p() * migration_baseline) / (cc * log2);
 }
 
