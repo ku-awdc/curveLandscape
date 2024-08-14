@@ -1,6 +1,6 @@
 #' Birth, death, and migration ODE model.
 #'
-#' Wedge and smooth refers to the presentence of a non-differentiability in the state-dependent migration rate.
+#' Wedge and smooth refers to the presence of a non-differentiability in the state-dependent migration rate.
 #'
 #' The migration mechanism is only aware of the conditions in _source_. The
 #' destination patch is evenly distributed amongst all present patches.
@@ -23,7 +23,8 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
   }
 
   deSolve::ode(
-    y = N0, times = seq.default(0, t_max, by = delta_t),
+    y = N0, 
+    times = seq.default(from = 0, to = t_max, by = delta_t),
     parms = list(r = growth_rate, cc = carrying_capacity, m0 = migration_baseline),
     func = function(times, y, parameters) {
       with(parameters, {
