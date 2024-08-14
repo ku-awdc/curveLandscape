@@ -21,7 +21,7 @@ ode_source_only_wedge(
     methods.}
 }
 \description{
-Wedge and smooth refers to the presentence of a non-differentiability in the state-dependent migration rate.
+Wedge and smooth refers to the presence of a non-differentiability in the state-dependent migration rate.
 }
 \details{
 The migration mechanism is only aware of the conditions in \emph{source}. The
