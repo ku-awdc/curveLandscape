@@ -8,7 +8,7 @@
 #'
 #' @param migration_baseline Double, normalised internally by (n-1)
 #' @inheritParams deSolve::ode
-ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_intercept = 0, migration_baseline, delta_t, t_max = 25, ...) {
+ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_offset = 0, migration_intercept = 0, migration_baseline, delta_t, t_max = 25, ...) {
   n_len <- length(n0)
   migration_baseline <- if (n_len == 1) {
     0
@@ -28,17 +28,22 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
   }
 
   deSolve::ode(
-    y = N0, 
+    y = N0,
     times = seq.default(from = 0, to = t_max, by = delta_t),
-    parms = list(r = growth_rate, cc = carrying_capacity, m0 = migration_baseline),
+    parms = list(r = growth_rate, 
+      cc = carrying_capacity, 
+      migration_offset = migration_offset,
+      migration_baseline = migration_baseline, 
+      migration_intercept = migration_intercept),
     func = function(times, y, parameters) {
       with(parameters, {
         dN <- r * y * (1 - y / cc)
 
         # APPROACH: WEDGE
+        cc_modified <- cc - migration_offset 
         mj <- (
-          m0 * pmax(y - (cc - 1), 0)
-        ) / cc
+          migration_baseline * pmax(y - (cc_modified - 1), 0)
+        ) / cc_modified
         mj <- mj + migration_intercept
         dN <- dN + sum(mj * y) - mj * y * n_len
 
@@ -59,7 +64,7 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
 }
 
 #' @inherit ode_source_only_wedge description
-ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration_intercept = 0, migration_baseline, delta_t, t_max = 25) {
+ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration_offset = 0, migration_intercept = 0, migration_baseline, delta_t, t_max = 25) {
   n_len <- length(n0)
   migration_baseline <- if (n_len == 1) {
     0
@@ -80,13 +85,18 @@ ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration
 
   deSolve::ode(
     y = N0, times = seq.default(0, t_max, by = delta_t),
-    parms = list(r = growth_rate, cc = carrying_capacity, m0 = migration_baseline),
+    parms = list(r = growth_rate, cc = carrying_capacity, 
+      migration_intercept = migration_intercept,
+      m0 = migration_baseline,
+      migration_offset = migration_offset
+      ),
     func = function(times, y, parameters) {
       with(parameters, {
         dN <- r * y * (1 - y / cc)
 
         # APPROACH: SMOOTH OR LogSumExp
-        mj <- (m0 * log1p(exp(y - cc))) / (log1p(1) * cc)
+        cc_modified <- cc - migration_offset 
+        mj <- (m0 * log1p(exp(y - cc_modified))) / (log1p(1) * cc_modified)
         mj <- mj + migration_intercept
         dN <- dN + sum(mj * y) - mj * y * n_len
 
