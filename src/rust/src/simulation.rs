@@ -683,6 +683,7 @@ extendr_module! {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use extendr_engine::with_r;
 
     use super::*;
