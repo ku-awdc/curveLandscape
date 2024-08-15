@@ -46,11 +46,11 @@ migration_baseline <- 1 / (8 / 12)
 repetitions <- 250
 t_max <- 25
 delta_t <- 1 / 12
-all_migration_intercept <- seq.default(0.5, to = 0.1, length.out = 10)
+all_migration_intercept <- c(50)
   
   
 fs::dir_create("figures")
-pdf("figures/063_plots_different_m_intercept_half_to_tenth.pdf")
+pdf("figures/067_plots_different_m_intercept_large.pdf")
 # DEBUG
 # all_migration_intercept <- all_migration_intercept[[5]]
 for (id_m_intercept in seq_along(all_migration_intercept)) {
@@ -336,7 +336,7 @@ for (id_m_intercept in seq_along(all_migration_intercept)) {
 
   print(p_plot_all_landscapes_together)
   write_rds(all_landscapes, glue(
-    ".cache/063_different_m_intercept_{id_m_intercept}_half_to_tenth.rds"))
+    ".cache/067_different_m_intercept_{id_m_intercept}_large.rds"))
   # fs::dir_create("figures")
   # ggsave(
   #   filename = "figures/061_mean_population_count_all_landscapes.svg",
