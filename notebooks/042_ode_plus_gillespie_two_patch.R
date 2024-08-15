@@ -46,13 +46,6 @@ ssa_output
 #' let us do with two patches...
 
 ode_source_only_wedge(
-  # ode_source_only_smooth(
-  # n0 = as.integer(c(10, 0)),
-  # birth_baseline = c(4, 4),
-  # death_baseline = c(1, 1),
-  # carrying_capacity = as.integer(c(2, 8)),
-  # migration_baseline = 1/(8/12),
-  # t_max = 5
   growth_rate = 4 - 1,
   carrying_capacity = c(2, 8),
   n0 = c(10, 0),
