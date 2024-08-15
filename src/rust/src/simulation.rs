@@ -208,6 +208,7 @@ struct WildSSAConfiguration {
     birth_baseline: Box<[f64]>,
     death_baseline: Box<[f64]>,
     carrying_capacity: Box<[f64]>,
+    migration_intercept: f64,
     migration_baseline: f64,
 }
 
@@ -232,6 +233,8 @@ struct WildSSAInternalState {
 ///
 /// @param migration_baseline Double that is m_0 in the formulas and is normalised
 /// by (n-1) internally.
+///
+/// Similar is done to `m_intercept`.
 ///
 /// @details
 ///
@@ -259,6 +262,7 @@ impl WildSSA {
         birth_baseline: &[f64],
         death_baseline: &[f64],
         carrying_capacity: &[f64],
+        migration_intercept: f64,
         migration_baseline: f64,
     ) -> Self {
         assert!(!n0.is_empty());
@@ -267,6 +271,7 @@ impl WildSSA {
         assert_eq!(birth_baseline.len(), death_baseline.len());
         assert_eq!(death_baseline.len(), carrying_capacity.len());
 
+        assert!(migration_intercept.is_sign_positive());
         assert!(migration_baseline.is_sign_positive());
 
         // FIXME: what's a better behaviour pattern?
@@ -288,12 +293,19 @@ impl WildSSA {
         };
         debug_assert!(migration_baseline.is_finite());
 
+        let migration_intercept = if n_len == 1 {
+            // no migration can happen, set to zero.
+            0.
+        } else {
+            migration_intercept / (n_len - 1) as f64
+        };
+        debug_assert!(migration_intercept.is_finite());
+
         // initialize state
         let n = n0.clone();
         let birth_baseline: Box<[_]> = birth_baseline.into();
         let death_baseline: Box<[_]> = death_baseline.into();
         let carrying_capacity: Box<[_]> = carrying_capacity.into();
-        let migration_baseline = migration_baseline.into();
 
         let mut birth_rate = birth_baseline.clone();
         birth_rate.fill(0.);
@@ -331,9 +343,13 @@ impl WildSSA {
             // APPROACH: wedge
             // TODO: replace with f_migration_wedge
             // f_migration_wedge(n, migration_baseline, cc, mig);
+            // remember to add the intercept
+            // *mig += migration_intercept;
 
             // TODO: APPROACH: smooth (untested)
             f_migration_smooth(n, migration_baseline, cc, mig);
+            // remember to add the intercept
+            *mig += migration_intercept;
 
             // TODO: debug assert if rates are positive..
             *prop = (*beta + *mu + *mig) * n;
@@ -362,6 +378,7 @@ impl WildSSA {
                 birth_baseline,
                 death_baseline,
                 carrying_capacity,
+                migration_intercept,
                 migration_baseline,
             },
         }
@@ -417,6 +434,7 @@ impl WildSSA {
             birth_baseline,
             death_baseline,
             carrying_capacity,
+            migration_intercept,
             migration_baseline,
         } = self.configuration;
         let WildSSAInternalState {
@@ -529,6 +547,8 @@ impl WildSSA {
             //         migration_rate.get_unchecked_mut(patch_id),
             //     );
             // }
+            // remember to add the intercept
+            // migration_rate[patch_id] += migration_intercept;
 
             // TODO: APPROACH: smooth (untested)
             unsafe {
@@ -539,6 +559,8 @@ impl WildSSA {
                     migration_rate.get_unchecked_mut(patch_id),
                 );
             }
+            // remember to add the intercept
+            migration_rate[patch_id] += migration_intercept;
 
             // now we can update the new patch propensity
             propensity[patch_id] =
@@ -578,6 +600,8 @@ impl WildSSA {
                 //         migration_rate.get_unchecked_mut(target_patch_id),
                 //     );
                 // }
+                // remember to add the intercept
+                // migration_rate[target_patch_id] += migration_intercept;
 
                 // TODO: APPROACH: smooth (untested)
                 unsafe {
@@ -588,6 +612,8 @@ impl WildSSA {
                         migration_rate.get_unchecked_mut(target_patch_id),
                     );
                 }
+                // remember to add the intercept
+                migration_rate[target_patch_id] += migration_intercept;
 
                 // now we can update the new patch propensity
                 propensity[target_patch_id] = (birth_rate[target_patch_id]
@@ -695,12 +721,14 @@ mod tests {
         let death_baseline = &[3.];
         let carrying_capacity = &[4.];
         let migration_baseline = 4.;
+        let migration_intercept = 0.1;
 
         let mut wild_ssa = WildSSA::new(
             n0,
             birth_baseline,
             death_baseline,
             carrying_capacity,
+            migration_intercept,
             migration_baseline,
         );
 

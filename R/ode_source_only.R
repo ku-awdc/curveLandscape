@@ -8,12 +8,17 @@
 #'
 #' @param migration_baseline Double, normalised internally by (n-1)
 #' @inheritParams deSolve::ode
-ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_baseline, delta_t, t_max = 25, ...) {
+ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_intercept = 0, migration_baseline, delta_t, t_max = 25, ...) {
   n_len <- length(n0)
   migration_baseline <- if (n_len == 1) {
     0
   } else {
     migration_baseline / (n_len - 1)
+  }
+  migration_intercept <- if (n_len == 1) {
+    0
+  } else {
+    migration_intercept / (n_len - 1)
   }
   # ensure that even if n = 1, that it is called N1.
   N0 <- if (n_len == 1) {
@@ -34,6 +39,7 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
         mj <- (
           m0 * pmax(y - (cc - 1), 0)
         ) / cc
+        mj <- mj + migration_intercept
         dN <- dN + sum(mj * y) - mj * y * n_len
 
         list(dN)
@@ -53,12 +59,17 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
 }
 
 #' @inherit ode_source_only_wedge description
-ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration_baseline, delta_t, t_max = 25) {
+ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration_intercept = 0, migration_baseline, delta_t, t_max = 25) {
   n_len <- length(n0)
   migration_baseline <- if (n_len == 1) {
     0
   } else {
     migration_baseline / (n_len - 1)
+  }
+  migration_intercept <- if (n_len == 1) {
+    0
+  } else {
+    migration_intercept / (n_len - 1)
   }
   # ensure that even if n = 1, that it is called N1.
   N0 <- if (n_len == 1) {
@@ -75,7 +86,8 @@ ode_source_only_smooth <- function(growth_rate, carrying_capacity, n0, migration
         dN <- r * y * (1 - y / cc)
 
         # APPROACH: SMOOTH OR LogSumExp
-        mj <- (m0 * log1p(exp(y - cc))) / (log(2) * cc)
+        mj <- (m0 * log1p(exp(y - cc))) / (log1p(1) * cc)
+        mj <- mj + migration_intercept
         dN <- dN + sum(mj * y) - mj * y * n_len
 
         list(dN)

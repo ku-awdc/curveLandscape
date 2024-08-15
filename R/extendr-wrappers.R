@@ -23,7 +23,7 @@ get_habitat_island_ids <- function(neighbourhood) .Call(wrap__get_habitat_island
 
 WildSSA <- new.env(parent = emptyenv())
 
-WildSSA$new <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline) .Call(wrap__WildSSA__new, n0, birth_baseline, death_baseline, carrying_capacity, migration_baseline)
+WildSSA$new <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_intercept, migration_baseline) .Call(wrap__WildSSA__new, n0, birth_baseline, death_baseline, carrying_capacity, migration_intercept, migration_baseline)
 
 WildSSA$run_and_record_patch <- function(t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_patch, self, t_max, repetitions, seed)
 
