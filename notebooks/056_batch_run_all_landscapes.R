@@ -64,16 +64,19 @@ summarised_binned_reps <- function(binned_ssa_output, binned_time, repetitions) 
   #     }
   # )
   mean_binned <- rowMeans(binned_ssa_output)
-  sd_binned <- apply(binned_ssa_output, 1, sd)
-  se_binned <- sd_binned / sqrt(repetitions)
-  ci_lower <- mean_binned - qt(0.975, df = repetitions - 1) * se_binned
-  ci_upper <- mean_binned + qt(0.975, df = repetitions - 1) * se_binned
+  mean_binned <- rowMeans(binned_ssa_output)
+  # Assumes things are symmetric.... 
+  # sd_binned <- apply(binned_ssa_output, 1, sd)
+  # se_binned <- sd_binned / sqrt(repetitions)
+  # ci_lower <- mean_binned - qt(0.975, df = repetitions - 1) * se_binned
+  # ci_upper <- mean_binned + qt(0.975, df = repetitions - 1) * se_binned
+
+  ci_lower <- apply(binned_ssa_output, 1, quantile, probs = 0.025)
+  ci_upper <- apply(binned_ssa_output, 1, quantile, probs = 1 - 0.025)
 
   tibble(
     time = binned_time,
     mean = mean_binned,
-    sd = sd_binned,
-    se = se_binned,
     ci_lower = ci_lower,
     ci_upper = ci_upper
   )

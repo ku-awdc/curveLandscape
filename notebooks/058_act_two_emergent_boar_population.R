@@ -11,6 +11,16 @@ all_tmax <- c(1, 2, 3)
 
 total_n0 <- 1
 
+#' ANOTHER APPROACH: Seed all patches with 10%, 20%, 30% of their carrying capacity.
+#' Logic is hard.
+#' 
+
+#' ANOTHER APPROACH:
+#' Arrange by descending order of carrying capacity (floored),
+#' cumsum of that, slice until the desired seeding n0 is achieved.
+#' The remaining top is the patches to be filled. 
+#' 
+
 seed_locations_in_grid <- function(grid, total_n0) {
   stopifnot(
     !is.null(grid$Capacity),
