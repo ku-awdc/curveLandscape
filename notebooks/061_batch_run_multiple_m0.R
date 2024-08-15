@@ -8,10 +8,10 @@ all_landscapes$binned_output <- vector("list", length = nrow(all_landscapes))
 all_landscapes$stat_binned_output <- vector("list", length = nrow(all_landscapes))
 all_landscapes$ode_output <- vector("list", length = nrow(all_landscapes))
 
-all_landscapes_trans <- purrr::transpose(all_landscapes)
+# all_landscapes_trans <- purrr::transpose(all_landscapes)
 
 
-all_landscapes_trans
+# all_landscapes_trans
 
 summarised_binned_reps <- function(binned_ssa_output, binned_time, repetitions) {
   # binned_ssa_output <- cbind(
@@ -23,33 +23,39 @@ summarised_binned_reps <- function(binned_ssa_output, binned_time, repetitions) 
   #     {
   #       do.call(cbind, .)
   #     }
-  # )
+  # ) 
   mean_binned <- rowMeans(binned_ssa_output)
-  sd_binned <- apply(binned_ssa_output, 1, sd)
-  se_binned <- sd_binned / sqrt(repetitions)
-  ci_lower <- mean_binned - qt(0.975, df = repetitions - 1) * se_binned
-  ci_upper <- mean_binned + qt(0.975, df = repetitions - 1) * se_binned
+  # Assumes things are symmetric.... 
+  # sd_binned <- apply(binned_ssa_output, 1, sd)
+  # se_binned <- sd_binned / sqrt(repetitions)
+  # ci_lower <- mean_binned - qt(0.975, df = repetitions - 1) * se_binned
+  # ci_upper <- mean_binned + qt(0.975, df = repetitions - 1) * se_binned
+
+  ci_lower <- apply(binned_ssa_output, 1, quantile, probs = 0.025)
+  ci_upper <- apply(binned_ssa_output, 1, quantile, probs = 1 - 0.025)
 
   tibble(
     time = binned_time,
     mean = mean_binned,
-    sd = sd_binned,
-    se = se_binned,
     ci_lower = ci_lower,
     ci_upper = ci_upper
   )
 }
 #'
-migration_baseline <- 1 / (8 / 12)
+# migration_baseline <- 1 / (8 / 12)
 repetitions <- 250
 t_max <- 25
 delta_t <- 1 / 12
-
+all_migration_baseline <- 1 / ((1:24) / 12)
+  
+  
 fs::dir_create("figures")
 pdf("figures/061_plots_different_m0.pdf")
-for (m0 in 1 / ((1:24) / 12)) {
+# DEBUG
+# all_migration_baseline <- all_migration_baseline[[5]]
+for (id_m0 in seq_along(all_migration_baseline)) {
   # migration_baseline <- 1 / (8 / 12)
-  migration_baseline <- m0
+  migration_baseline <- all_migration_baseline[id_m0]
 
 
   # Amend simulation details to the object
@@ -62,6 +68,7 @@ for (m0 in 1 / ((1:24) / 12)) {
     )
   )
 
+  all_landscapes_trans <- purrr::transpose(all_landscapes)
   binned_time <- seq.default(from = 0, to = t_max, by = delta_t)
   for (id_landscape in seq_along(all_landscapes_trans)) {
     landscape <- all_landscapes_trans[[id_landscape]]
@@ -188,8 +195,6 @@ for (m0 in 1 / ((1:24) / 12)) {
             NULL
         }
     }
-
-
 
     #' Compare with ODE and plot the resulting error curve.
     #'
@@ -326,8 +331,10 @@ for (m0 in 1 / ((1:24) / 12)) {
         ggpubr::theme_pubclean(15) +
         NULL
     } -> p_plot_all_landscapes_together
-  print(p_plot_all_landscapes_together)
 
+  print(p_plot_all_landscapes_together)
+  write_rds(all_landscapes, glue(
+    ".cache/061_different_m0_{id_m0}.rds"))
   # fs::dir_create("figures")
   # ggsave(
   #   filename = "figures/061_mean_population_count_all_landscapes.svg",
@@ -338,5 +345,7 @@ for (m0 in 1 / ((1:24) / 12)) {
   #   # height = 2.5
   # )
 }
+
 beepr::beep("ding")
 dev.off()
+  
