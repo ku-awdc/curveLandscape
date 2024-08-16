@@ -23,9 +23,9 @@ summarised_binned_reps <- function(binned_ssa_output, binned_time, repetitions) 
   #     {
   #       do.call(cbind, .)
   #     }
-  # ) 
+  # )
   mean_binned <- rowMeans(binned_ssa_output)
-  # Assumes things are symmetric.... 
+  # Assumes things are symmetric....
   # sd_binned <- apply(binned_ssa_output, 1, sd)
   # se_binned <- sd_binned / sqrt(repetitions)
   # ci_lower <- mean_binned - qt(0.975, df = repetitions - 1) * se_binned
@@ -46,11 +46,11 @@ migration_baseline <- 1 / (8 / 12)
 repetitions <- 250
 t_max <- 25
 delta_t <- 1 / 12
-all_migration_intercept <- c(50)
-  
-  
+all_migration_intercept <- 0
+
+
 fs::dir_create("figures")
-pdf("figures/067_plots_different_m_intercept_large.pdf")
+pdf("figures/067_just_run_it.pdf")
 # DEBUG
 # all_migration_intercept <- all_migration_intercept[[5]]
 for (id_m_intercept in seq_along(all_migration_intercept)) {
@@ -198,84 +198,90 @@ for (id_m_intercept in seq_along(all_migration_intercept)) {
         }
     }
 
-    #' Compare with ODE and plot the resulting error curve.
-    #'
-    ode_source_only_wedge(
-      growth_rate = 4 - 1,
-      carrying_capacity = landscape$grid$Capacity,
-      n0 = n0,
-      migration_baseline = migration_baseline,
-      delta_t = delta_t
-    ) -> wild_ode_output
+    #   #' Compare with ODE and plot the resulting error curve.
+    #   #'
+    #   ode_source_only_wedge(
+    #     growth_rate = 4 - 1,
+    #     carrying_capacity = landscape$grid$Capacity,
+    #     n0 = n0,
+    #     migration_baseline = migration_baseline,
+    #     delta_t = delta_t,
+    #     t_max = t_max
+    #   ) -> wild_ode_output
 
 
-    wild_ode_output_population <- wild_ode_output %>%
-      group_by(time) %>%
-      reframe(population_count = sum(N))
-    # wild_ode_output_population$time %>% plot()
-    # binned_time %>% plot()
-    stopifnot(
-      zapsmall(sum(wild_ode_output_population$time - binned_time)) == 0
-    )
+    #   wild_ode_output_population <- wild_ode_output %>%
+    #     mutate(time = zapsmall(time)) %>%
+    #     group_by(time) %>%
+    #     reframe(population_count = sum(N))
 
-    all_landscapes$ode_output[[id_landscape]] <- wild_ode_output_population
+    #   wild_ode_output %>% glimpse()
+    #   # wild_ode_output %>% print(n = Inf)
 
-    # print(p_binned_stat_ssa_output +
-    #   geom_line(
-    #     data = wild_ode_output_population,
-    #     aes(time, population_count, color = "ODE"),
-    #     linetype = "dotted"
-    #   ) +
-    #   labs(y = "Population count") +
-    #   theme(legend.position = "bottom") +
-    #   labs(color = NULL))
-    error_reps <- binned_ssa_output - wild_ode_output_population$population_count
+    #   # wild_ode_output_population$time %>% plot()
+    #   # binned_time %>% plot()
+    #   stopifnot(
+    #     zapsmall(sum(wild_ode_output_population$time - binned_time)) == 0
+    #   )
 
-    #' ## Binned pr repetition population count plot..
+    #   all_landscapes$ode_output[[id_landscape]] <- wild_ode_output_population
 
-    error_reps %>%
-      set_colnames(seq_len(ncol(.))) %>%
-      as_tibble() %>%
-      mutate(
-        time = binned_time,
-      ) %>%
-      pivot_longer(-time, names_to = "repetition", values_to = "error_count") %>%
-      {
-        ggplot(.) +
-          aes(time, error_count, group = repetition) +
-          geom_step(aes(alpha = error_count, color = repetition), show.legend = FALSE) +
-          labs(x = "time [years]") +
-          labs(y = "Error pr. replicate on population count") +
-          # geom_hline(
-          #   aes(yintercept = landscape$total_cc),
-          #   linetype = "dotted",
-          #   linewidth = 1.1
-          # ) +
-          p_landscape_caption +
-          ggpubr::theme_pubclean(15) +
-          # theme_light(15) +
-          NULL
-      } -> p_error_reps
-    # print(p_error_reps)
+    #   # print(p_binned_stat_ssa_output +
+    #   #   geom_line(
+    #   #     data = wild_ode_output_population,
+    #   #     aes(time, population_count, color = "ODE"),
+    #   #     linetype = "dotted"
+    #   #   ) +
+    #   #   labs(y = "Population count") +
+    #   #   theme(legend.position = "bottom") +
+    #   #   labs(color = NULL))
+    #   error_reps <- binned_ssa_output - wild_ode_output_population$population_count
 
-    stat_error_reps <- summarised_binned_reps(error_reps, binned_time, repetitions = repetitions)
+    #   #' ## Binned pr repetition population count plot..
 
-    stat_error_reps %>%
-      glimpse() %>%
-      {
-        ggplot(.) +
-          geom_line(aes(time, mean)) +
-          geom_line(linetype = "dotted", aes(time, ci_lower)) +
-          geom_line(linetype = "dotdash", aes(time, ci_upper)) +
-          # geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
-          labs(x = "time [years]") +
-          labs(y = "Mean Error on Population Count") +
-          p_landscape_caption +
-          ggpubr::theme_pubclean(15) +
-          # theme_light(15) +
-          NULL
-      } -> p_error_stat
-    # print(p_error_stat)
+    #   error_reps %>%
+    #     set_colnames(seq_len(ncol(.))) %>%
+    #     as_tibble() %>%
+    #     mutate(
+    #       time = binned_time,
+    #     ) %>%
+    #     pivot_longer(-time, names_to = "repetition", values_to = "error_count") %>%
+    #     {
+    #       ggplot(.) +
+    #         aes(time, error_count, group = repetition) +
+    #         geom_step(aes(alpha = error_count, color = repetition), show.legend = FALSE) +
+    #         labs(x = "time [years]") +
+    #         labs(y = "Error pr. replicate on population count") +
+    #         # geom_hline(
+    #         #   aes(yintercept = landscape$total_cc),
+    #         #   linetype = "dotted",
+    #         #   linewidth = 1.1
+    #         # ) +
+    #         p_landscape_caption +
+    #         ggpubr::theme_pubclean(15) +
+    #         # theme_light(15) +
+    #         NULL
+    #     } -> p_error_reps
+    #   # print(p_error_reps)
+
+    #   stat_error_reps <- summarised_binned_reps(error_reps, binned_time, repetitions = repetitions)
+
+    #   stat_error_reps %>%
+    #     glimpse() %>%
+    #     {
+    #       ggplot(.) +
+    #         geom_line(aes(time, mean)) +
+    #         geom_line(linetype = "dotted", aes(time, ci_lower)) +
+    #         geom_line(linetype = "dotdash", aes(time, ci_upper)) +
+    #         # geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
+    #         labs(x = "time [years]") +
+    #         labs(y = "Mean Error on Population Count") +
+    #         p_landscape_caption +
+    #         ggpubr::theme_pubclean(15) +
+    #         # theme_light(15) +
+    #         NULL
+    #     } -> p_error_stat
+    #   # print(p_error_stat)
   }
 
   # dev.off()
@@ -336,7 +342,8 @@ for (id_m_intercept in seq_along(all_migration_intercept)) {
 
   print(p_plot_all_landscapes_together)
   write_rds(all_landscapes, glue(
-    ".cache/067_different_m_intercept_{id_m_intercept}_large.rds"))
+    ".cache/067_different_m_intercept_{id_m_intercept}_large.rds"
+  ))
   # fs::dir_create("figures")
   # ggsave(
   #   filename = "figures/061_mean_population_count_all_landscapes.svg",
@@ -350,4 +357,3 @@ for (id_m_intercept in seq_along(all_migration_intercept)) {
 
 beepr::beep("ding")
 dev.off()
-  

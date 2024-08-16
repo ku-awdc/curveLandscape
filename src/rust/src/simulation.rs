@@ -342,12 +342,12 @@ impl WildSSA {
             // migration rate
             // APPROACH: wedge
             // TODO: replace with f_migration_wedge
-            // f_migration_wedge(n, migration_baseline, cc, mig);
+            f_migration_wedge(n, migration_baseline, cc, mig);
             // remember to add the intercept
             // *mig += migration_intercept;
 
             // TODO: APPROACH: smooth (untested)
-            f_migration_smooth(n, migration_baseline, cc, mig);
+            // f_migration_smooth(n, migration_baseline, cc, mig);
             // remember to add the intercept
             *mig += migration_intercept;
 
@@ -539,20 +539,8 @@ impl WildSSA {
 
             // migration rate
             // APPROACH: wedge
-            // unsafe {
-            //     f_migration_wedge(
-            //         n[patch_id] as _,
-            //         migration_baseline,
-            //         carrying_capacity[patch_id],
-            //         migration_rate.get_unchecked_mut(patch_id),
-            //     );
-            // }
-            // remember to add the intercept
-            // migration_rate[patch_id] += migration_intercept;
-
-            // TODO: APPROACH: smooth (untested)
             unsafe {
-                f_migration_smooth(
+                f_migration_wedge(
                     n[patch_id] as _,
                     migration_baseline,
                     carrying_capacity[patch_id],
@@ -561,6 +549,18 @@ impl WildSSA {
             }
             // remember to add the intercept
             migration_rate[patch_id] += migration_intercept;
+
+            // TODO: APPROACH: smooth (untested)
+            // unsafe {
+            //     f_migration_smooth(
+            //         n[patch_id] as _,
+            //         migration_baseline,
+            //         carrying_capacity[patch_id],
+            //         migration_rate.get_unchecked_mut(patch_id),
+            //     );
+            // }
+            // remember to add the intercept
+            // migration_rate[patch_id] += migration_intercept;
 
             // now we can update the new patch propensity
             propensity[patch_id] =
@@ -592,20 +592,8 @@ impl WildSSA {
 
                 // migration rate
                 // APPROACH: wedge
-                // unsafe {
-                //     f_migration_wedge(
-                //         n[target_patch_id] as _,
-                //         migration_baseline,
-                //         carrying_capacity[target_patch_id],
-                //         migration_rate.get_unchecked_mut(target_patch_id),
-                //     );
-                // }
-                // remember to add the intercept
-                // migration_rate[target_patch_id] += migration_intercept;
-
-                // TODO: APPROACH: smooth (untested)
                 unsafe {
-                    f_migration_smooth(
+                    f_migration_wedge(
                         n[target_patch_id] as _,
                         migration_baseline,
                         carrying_capacity[target_patch_id],
@@ -614,6 +602,18 @@ impl WildSSA {
                 }
                 // remember to add the intercept
                 migration_rate[target_patch_id] += migration_intercept;
+
+                // TODO: APPROACH: smooth (untested)
+                // unsafe {
+                //     f_migration_smooth(
+                //         n[target_patch_id] as _,
+                //         migration_baseline,
+                //         carrying_capacity[target_patch_id],
+                //         migration_rate.get_unchecked_mut(target_patch_id),
+                //     );
+                // }
+                // // remember to add the intercept
+                // migration_rate[target_patch_id] += migration_intercept;
 
                 // now we can update the new patch propensity
                 propensity[target_patch_id] = (birth_rate[target_patch_id]
