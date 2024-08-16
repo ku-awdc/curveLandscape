@@ -698,11 +698,11 @@ pub(crate) fn as_u32(integer: &[i32]) -> Option<&[u32]> {
     if any_negative {
         return None;
     }
-    Some(unsafe { std::mem::transmute(integer) })
+    Some(unsafe { std::mem::transmute::<&[i32], &[u32]>(integer) })
 }
 
 extendr_module! {
-    mod simulation;
+    mod ssa_source_only_migration;
 
     impl WildSSA;
 }

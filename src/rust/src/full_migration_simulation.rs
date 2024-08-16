@@ -1,5 +1,5 @@
 use crate::{
-    simulation::{as_u32, PatchRecord},
+    ssa_source_only_migration::{as_u32, PatchRecord},
     triangle_indexing::{get_row_col, get_total_number_of_elements},
 };
 
