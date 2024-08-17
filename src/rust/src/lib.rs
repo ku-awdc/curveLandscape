@@ -4,7 +4,7 @@
 
 use extendr_api::prelude::*;
 
-mod full_migration_simulation; // work in progress
+// mod full_migration_simulation; // work in progress
 mod linspace;
 mod logspace;
 mod simulation;

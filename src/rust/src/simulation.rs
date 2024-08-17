@@ -1,8 +1,8 @@
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use extendr_api::{prelude::*, IntoRobj};
+use itertools::repeat_n;
 #[allow(unused_imports)]
 use itertools::Itertools;
-use itertools::{izip, repeat_n};
 use rand::distributions::WeightedIndex;
 use rand::{rngs::SmallRng, SeedableRng};
 
@@ -269,6 +269,10 @@ impl WildSSA {
         migration_baseline: f64,
         // missing the softening index...
     ) -> Self {
+        assert!(
+            migration_intercept.abs() <= 0.00001,
+            "not implemented yet, set to zero please"
+        );
         assert!(!n0.is_empty());
         let n_len = n0.len();
         assert_eq!(n_len, birth_baseline.len());
@@ -288,8 +292,8 @@ impl WildSSA {
         let n0 = as_u32(n0).expect("`n0` must be all non-negative integers");
         let n0: Box<[_]> = n0.into();
 
-        let birth_baseline = birth_baseline.into();
-        let death_baseline = death_baseline.into();
+        let birth_baseline: Box<[_]> = birth_baseline.into();
+        let death_baseline: Box<[_]> = death_baseline.into();
 
         // migration baseline must be normalised based on number of patches
         let migration_baseline = if n_len == 1 {
@@ -316,11 +320,11 @@ impl WildSSA {
         let mut total_immigration_propensity = 0.;
 
         let tmp = vec![0.; n_len.pow(2)];
-        let emigration_propensity: Box<[f64]> = tmp.clone().into();
-        let immigration_propensity: Box<[_]> = tmp.into();
+        let mut emigration_propensity: Box<[_]> = tmp.clone().into();
+        let mut immigration_propensity: Box<[_]> = tmp.into();
         let m0 = migration_baseline;
-        for k in 0..(n_len.pow(2)) {
-            let (i, j) = (k / n_len, k % n_len);
+        for k_ij in 0..(n_len.pow(2)) {
+            let (i, j) = (k_ij / n_len, k_ij % n_len);
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
 
@@ -333,19 +337,23 @@ impl WildSSA {
                 let dd_birth_rate =
                     death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
 
-                emigration_propensity[k] = dd_death_rate * n_i;
-                immigration_propensity[k] = dd_birth_rate * n_i;
+                immigration_propensity[k_ij] = dd_birth_rate * n_i;
+                // note: the `k_ij` vs  `k_ji` distinction does not matter here, as i == j.
+                let k_ji = j + i * n_len;
+                emigration_propensity[k_ji] = dd_death_rate * n_i;
             } else {
                 // APPROACH: WEDGE
                 // m_(j i)
-                emigration_propensity[k] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
+                let k_ji = j + i * n_len;
+                emigration_propensity[k_ji] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[i]);
                 // m_(i j)
-                immigration_propensity[k] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
+                immigration_propensity[k_ij] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[j]);
             }
-            total_emigration_propensity += emigration_propensity[k];
-            total_immigration_propensity += immigration_propensity[k];
+            let k_ji = j + i * n_len;
+            total_emigration_propensity += emigration_propensity[k_ji];
+            total_immigration_propensity += immigration_propensity[k_ij];
         }
         let total_propensity = total_emigration_propensity + total_immigration_propensity;
 
@@ -423,26 +431,24 @@ impl WildSSA {
             birth_baseline,
             death_baseline,
             carrying_capacity,
-            migration_intercept,
+            migration_intercept: _,
             migration_baseline,
         } = self.configuration;
         let WildSSAInternalState {
             ref mut n,
-            ref mut birth_rate,
-            ref mut death_rate,
-            ref mut migration_rate,
-            ref mut g_div_cc_baseline,
-            ref mut propensity,
-            ref mut total_propensity,
             mut current_time,
-            mut which_patch_sampler,
+            ref mut emigration_propensity,
+            ref mut immigration_propensity,
+            mut total_emigration_propensity,
+            mut total_immigration_propensity,
+            mut total_propensity,
         } = self.internal_state;
         // record initial state
         // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
         recorder.add_initial_state(current_time, n.as_ref());
         'simulation_loop: loop {
             let delta_t: f64 = rng.sample(rand::distributions::Open01);
-            let delta_t = -delta_t.ln() / *total_propensity;
+            let delta_t = -delta_t.ln() / total_propensity;
             assert!(delta_t.is_finite());
             current_time += delta_t;
 
@@ -450,193 +456,122 @@ impl WildSSA {
                 break;
             }
 
-            // which patch experienced a (birth|death|migration) event?
-            let patch_id = rng.sample(&which_patch_sampler);
-
-            // Did (birth|death|migration) happen?
-            let flag_bdm = rng.sample(
-                WeightedIndex::new([
-                    birth_rate[patch_id],
-                    death_rate[patch_id],
-                    migration_rate[patch_id],
-                ])
-                .unwrap(),
+            // did emigration (0) or immigration occur?
+            let is_emigration = rng.gen_bool(
+                total_emigration_propensity
+                    / (total_immigration_propensity + total_emigration_propensity),
             );
+            let (dest_patch, src_patch) = if is_emigration {
+                // (j i)
+                let k_event =
+                    rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
+                let k_ji = (k_event % n_len, k_event / n_len);
+                k_ji
+            } else {
+                // (i j)
+                let k_event =
+                    rng.sample(WeightedIndex::new(immigration_propensity.as_ref()).unwrap());
+                let k_ij = (k_event / n_len, k_event % n_len);
+                k_ij
+            };
 
-            let mut target_patch_id = patch_id; // sensible? default?
-            match flag_bdm {
+            match (is_emigration, dest_patch == src_patch) {
                 // birth
-                0 => {
-                    n[patch_id] += 1;
-                    recorder.record_birth(current_time, patch_id, n[patch_id]);
+                (false, true) => {
+                    n[src_patch] += 1;
+                    recorder.record_birth(current_time, src_patch, n[src_patch]);
                 }
                 // death
-                1 => {
-                    debug_assert_ne!(n[patch_id], 0);
-                    n[patch_id] -= 1;
-
-                    recorder.record_death(current_time, patch_id, n[patch_id]);
+                (true, true) => {
+                    n[src_patch] -= 1;
+                    recorder.record_death(current_time, src_patch, n[src_patch]);
                 }
-                // migration
-                2 => {
-                    debug_assert_ne!(n[patch_id], 0);
-                    n[patch_id] -= 1;
-
-                    // determine the target patch_id (exclude current as an option)
-                    target_patch_id = rng.gen_range(0..n_len - 1); // [0,..., n-2]
-                    target_patch_id = if target_patch_id < patch_id {
-                        target_patch_id
-                    } else {
-                        // don't return `patch_id`, but everything above it
-                        target_patch_id + 1
-                    };
-
-                    n[target_patch_id] += 1;
-
+                // emigration
+                (true, false) => {
+                    n[src_patch] -= 1;
+                    n[dest_patch] += 1;
                     recorder.record_migration(
                         current_time,
-                        patch_id,
-                        target_patch_id,
-                        n[patch_id],
-                        n[target_patch_id],
+                        src_patch,
+                        dest_patch,
+                        n[src_patch],
+                        n[dest_patch],
                     )
                 }
-                _ => unreachable!(),
-            };
-            let target_patch_id = target_patch_id;
+                // note: duplicate of the branch before, but helps with readability.
+                // immigration
+                (false, false) => {
+                    n[src_patch] -= 1;
+                    n[dest_patch] += 1;
+                    recorder.record_migration(
+                        current_time,
+                        src_patch,
+                        dest_patch,
+                        n[src_patch],
+                        n[dest_patch],
+                    )
+                }
+            }
+
+            // update the columns, as there are new `N`s and thus their value has changed.
+            // let mut changed_patches = Vec::with_capacity(2);
+            // if dest_patch != src_patch {
+            //     changed_patches.push(src_patch); // or `dest_patch`
+            // } else {
+            //     changed_patches.push(dest_patch);
+            //     changed_patches.push(src_patch);
+            // };
+            let changed_patches = [src_patch, dest_patch];
+            // alternative is `let changed_patches = [src_patch, dest_patch];`
+            // and accept double updating the cases of (birth|death).
+            for col_id in changed_patches {
+                let row_in_col_range = col_id * n_len..(col_id * n_len + n_len);
+                for row_id in row_in_col_range {
+                    let (i, j) = (row_id, col_id);
+                    let k_ij = i + j * n_len;
+                    // these are now the _new_ values..
+                    let n_i = n[i] as f64;
+                    let n_j = n[j] as f64;
+                    let k_ji = j + i * n_len;
+
+                    // remove the old values...
+                    total_emigration_propensity -= emigration_propensity[k_ji];
+                    total_immigration_propensity -= immigration_propensity[k_ij];
+
+                    if i == j {
+                        // diagonals means birth/death
+                        let g_rate_ratio =
+                            (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
+
+                        let dd_death_rate =
+                            death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
+                        let dd_birth_rate =
+                            death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
+                        // note: k_ij and k_ji distinction should not matter here.. as i == j
+                        emigration_propensity[k_ji] = dd_death_rate * n_i;
+                        immigration_propensity[k_ij] = dd_birth_rate * n_j;
+                    } else {
+                        let m0 = migration_baseline;
+                        // APPROACH: WEDGE
+                        // m_(j i)
+                        emigration_propensity[k_ji] = (m0
+                            * (n_i - carrying_capacity[i]).exp().ln_1p())
+                            / ((1_f64).ln_1p() * carrying_capacity[i]);
+                        // m_(i j)
+                        immigration_propensity[k_ij] = (m0
+                            * (n_j - carrying_capacity[j]).exp().ln_1p())
+                            / ((1_f64).ln_1p() * carrying_capacity[j]);
+                    }
+                    total_emigration_propensity += emigration_propensity[k_ji];
+                    total_immigration_propensity += immigration_propensity[k_ij];
+                }
+            }
+            // update total propensity
+            total_propensity = total_emigration_propensity + total_immigration_propensity;
 
             // Terminate due to extinction
             if n.iter().all(|&x| x == 0) {
                 break 'simulation_loop;
-            }
-
-            // remove old propensity, but we don't have the new yet
-            *total_propensity -= propensity[patch_id];
-
-            // update birth/death rate for the changed patch..
-            unsafe {
-                f_birth_death_rate(
-                    n[patch_id] as _,
-                    birth_baseline[patch_id],
-                    death_baseline[patch_id],
-                    carrying_capacity[patch_id],
-                    birth_rate.get_unchecked_mut(patch_id),
-                    death_rate.get_unchecked_mut(patch_id),
-                    g_div_cc_baseline.get_unchecked_mut(patch_id),
-                );
-            }
-
-            // migration rate
-            // APPROACH: wedge
-            unsafe {
-                f_migration_wedge(
-                    n[patch_id] as _,
-                    migration_baseline,
-                    carrying_capacity[patch_id],
-                    migration_rate.get_unchecked_mut(patch_id),
-                );
-            }
-            // remember to add the intercept
-            migration_rate[patch_id] += migration_intercept;
-
-            // TODO: APPROACH: smooth (untested)
-            // unsafe {
-            //     f_migration_smooth(
-            //         n[patch_id] as _,
-            //         migration_baseline,
-            //         carrying_capacity[patch_id],
-            //         migration_rate.get_unchecked_mut(patch_id),
-            //     );
-            // }
-            // remember to add the intercept
-            // migration_rate[patch_id] += migration_intercept;
-
-            // now we can update the new patch propensity
-            propensity[patch_id] =
-                (birth_rate[patch_id] + death_rate[patch_id] + migration_rate[patch_id])
-                    * n[patch_id] as f64;
-            // and total propensity can be updated now
-            *total_propensity += propensity[patch_id];
-
-            if flag_bdm == 2 {
-                // migration happened, so...
-
-                // region: update everything for `target_patch_id` as well
-
-                // remove old propensity, but we don't have the new yet
-                *total_propensity -= propensity[target_patch_id];
-
-                // update birth/death rate for the changed patch..
-                unsafe {
-                    f_birth_death_rate(
-                        n[target_patch_id] as _,
-                        birth_baseline[target_patch_id],
-                        death_baseline[target_patch_id],
-                        carrying_capacity[target_patch_id],
-                        birth_rate.get_unchecked_mut(target_patch_id),
-                        death_rate.get_unchecked_mut(target_patch_id),
-                        g_div_cc_baseline.get_unchecked_mut(target_patch_id),
-                    );
-                }
-
-                // migration rate
-                // APPROACH: wedge
-                unsafe {
-                    f_migration_wedge(
-                        n[target_patch_id] as _,
-                        migration_baseline,
-                        carrying_capacity[target_patch_id],
-                        migration_rate.get_unchecked_mut(target_patch_id),
-                    );
-                }
-                // remember to add the intercept
-                migration_rate[target_patch_id] += migration_intercept;
-
-                // TODO: APPROACH: smooth (untested)
-                // unsafe {
-                //     f_migration_smooth(
-                //         n[target_patch_id] as _,
-                //         migration_baseline,
-                //         carrying_capacity[target_patch_id],
-                //         migration_rate.get_unchecked_mut(target_patch_id),
-                //     );
-                // }
-                // // remember to add the intercept
-                // migration_rate[target_patch_id] += migration_intercept;
-
-                // now we can update the new patch propensity
-                propensity[target_patch_id] = (birth_rate[target_patch_id]
-                    + death_rate[target_patch_id]
-                    + migration_rate[target_patch_id])
-                    * n[target_patch_id] as f64;
-                // and total propensity can be updated now
-                *total_propensity += propensity[target_patch_id];
-                // endregion
-
-                // update which_patch_sampler, since it contains `propensities` as weights
-                which_patch_sampler
-                    .update_weights(
-                        // the weights most be updated sequentially..
-                        if patch_id <= target_patch_id {
-                            [
-                                (patch_id, &propensity[patch_id]),
-                                (target_patch_id, &propensity[target_patch_id]),
-                            ]
-                        } else {
-                            [
-                                (target_patch_id, &propensity[target_patch_id]),
-                                (patch_id, &propensity[patch_id]),
-                            ]
-                        }
-                        .as_slice(),
-                    )
-                    .unwrap();
-            } else {
-                // migration didn't happen...
-                // update which_patch_sampler, since it contains `propensities` as weights
-                which_patch_sampler
-                    .update_weights(&[(patch_id, &propensity[patch_id])])
-                    .unwrap();
             }
         }
 
@@ -712,6 +647,7 @@ mod tests {
         let migration_baseline = 4.;
         let migration_intercept = 0.1;
 
+        #[allow(unused_mut)]
         let mut wild_ssa = WildSSA::new(
             n0,
             birth_baseline,
@@ -721,9 +657,6 @@ mod tests {
             migration_baseline,
         );
 
-        dbg!(&wild_ssa);
-        wild_ssa.death_rate[0] = 1000.;
-        wild_ssa.propensity[0] = 11234.;
         dbg!(&wild_ssa);
     }
 
