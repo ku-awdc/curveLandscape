@@ -204,6 +204,128 @@ impl Recorder for PopulationRecord {
 // TODO: Implement a recorder that is essentially `approx(method = "constant", f = 0)`
 // from R. This one should just record the last used .
 
+/// Records the total population at fixed time points.
+///
+/// Similar to `approx(method = "constant", f = 0)` in R.
+///
+#[derive(Debug, IntoRobj)]
+pub(crate) struct PopulationFixedRecord {
+    pub(crate) repetition: usize,
+    /// Fixed time points that, where the total population is recorded at.
+    pub(crate) time: Vec<f64>,
+    pub(crate) count: Vec<u32>,
+
+    // internal fields
+    current_time: f64,
+    current_count: u32,
+    // this is like an iterator going through `time`,
+    // and it is the current `time` and `count` entry we want to fill in.
+    current_time_index: usize,
+}
+
+impl PopulationFixedRecord {
+    pub fn new(repetition: usize, time_interval: &[f64]) -> Self {
+        // TODO: check that it is non-decreasing time points
+        assert!(!time_interval.is_empty());
+
+        let time = Vec::from(time_interval);
+        let count = Vec::with_capacity(time_interval.len());
+        // let count = vec![u32::MAX; time.len()];
+        let current_time = time[0];
+        let current_count = 0; // invalid state, must be rectified before using in algorithm
+        let current_time_index = 0; // good! we need to record the first time point.
+        Self {
+            repetition,
+            time,
+            count,
+            current_time,
+            current_count,
+            current_time_index,
+        }
+    }
+}
+impl Recorder for PopulationFixedRecord {
+    fn push(&mut self, _time: f64, _patch_id: usize, _n: u32) {
+        panic!("Doesn't make sense here...")
+    }
+
+    fn add_initial_state(&mut self, time: f64, n: &[u32]) {
+        // assert!(
+        //     (self.current_time - time).abs() <= 0.00001,
+        //     "initial requested time must match the initial simulated time"
+        // );
+        assert!(self.current_time <= time, "we didn't skip anything..");
+        let total_n0 = n.iter().sum();
+        self.current_count = total_n0;
+        self.current_time = time;
+        // is this initial time of interest?
+        if self.time[self.current_time_index] <= time {
+            // we crossed the time point we are interested in
+            self.count.push(self.current_count);
+            self.current_time_index += 1;
+        }
+    }
+
+    fn record_birth(&mut self, time: f64, _patch_id: usize, _n_patch: u32) {
+        self.current_time = time;
+        // is this initial time of interest?
+        if self.time[self.current_time_index] <= self.current_time {
+            // we crossed the time point we are interested in
+            self.count.push(self.current_count);
+            self.current_time_index += 1;
+        }
+        self.current_count += 1;
+    }
+
+    fn record_death(&mut self, time: f64, _patch_id: usize, _n_patch: u32) {
+        self.current_time = time;
+        // is this initial time of interest?
+        if self.time[self.current_time_index] <= self.current_time {
+            // we crossed the time point we are interested in
+            self.count.push(self.current_count);
+            self.current_time_index += 1;
+        }
+        self.current_count -= 1;
+    }
+
+    fn record_migration(
+        &mut self,
+        time: f64,
+        _source_patch_id: usize,
+        _target_patch_id: usize,
+        _source_n: u32,
+        _target_n: u32,
+    ) {
+        self.current_time = time;
+        // the population count doesn't change with a migration event,
+        // but we might have crossed the time points that we are interested in
+        if self.time[self.current_time_index] <= self.current_time {
+            // we crossed the time point we are interested in
+            self.count.push(self.current_count);
+            self.current_time_index += 1;
+        }
+    }
+
+    fn add_final_state(&mut self, t_max: f64, _n: &[u32]) {
+        // TODO: what is it that needs to be done here anyways?
+        self.current_time = t_max;
+        // self.current_count; // unchanged
+        if self.time[self.current_time_index] <= self.current_time {
+            self.count.push(self.current_count);
+            // since this is the last time point there is no need to go further..
+        }
+        // debug assert?
+        assert!(t_max >= self.time[self.current_time_index]);
+        // sanity check: did we record everything we set out to do?
+        // but also ensures the output is uniform.
+        assert_eq!(
+            self.count.len(),
+            self.time.len(),
+            "not all fixed time points were recorded."
+        );
+    }
+}
+
 #[derive(Debug, Clone)]
 struct WildSSAConfiguration {
     n0: Box<[u32]>,
@@ -412,6 +534,26 @@ impl WildSSA {
 
             //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
             population_recorder
+        }))
+    }
+
+    pub fn run_and_record_fixed_time_population(
+        &self,
+        time_intervals: &[f64],
+        t_max: f64,
+        repetitions: usize,
+        seed: u64,
+    ) -> List {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
+        List::from_iter((0..repetitions).map(|repetition| {
+            let mut fixed_interval_population_recorder =
+                PopulationFixedRecord::new(repetition, time_intervals);
+            self.clone()
+                .run_until(t_max, &mut rng, &mut fixed_interval_population_recorder);
+
+            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
+            fixed_interval_population_recorder
         }))
     }
 
