@@ -323,8 +323,10 @@ impl WildSSA {
         let mut emigration_propensity: Box<[_]> = tmp.clone().into();
         let mut immigration_propensity: Box<[_]> = tmp.into();
         let m0 = migration_baseline;
-        for k_ij in 0..(n_len.pow(2)) {
-            let (i, j) = (k_ij / n_len, k_ij % n_len);
+        for k in 0..(n_len.pow(2)) {
+            let (i, j) = (k / n_len, k % n_len);
+            // let k_ji = j + i * n_len;
+            // dbg!(k, (i, j));
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
 
@@ -332,28 +334,26 @@ impl WildSSA {
                 // diagonals means birth/death
                 let g_rate_ratio = (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
 
-                let dd_death_rate =
-                    death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
                 let dd_birth_rate =
+                    death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
+                let dd_death_rate =
                     death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
-
-                immigration_propensity[k_ij] = dd_birth_rate * n_i;
+                immigration_propensity[k] = dd_birth_rate * n_i;
                 // note: the `k_ij` vs  `k_ji` distinction does not matter here, as i == j.
-                let k_ji = j + i * n_len;
-                emigration_propensity[k_ji] = dd_death_rate * n_i;
+                emigration_propensity[k] = dd_death_rate * n_j;
             } else {
                 // APPROACH: WEDGE
                 // m_(j i)
-                let k_ji = j + i * n_len;
-                emigration_propensity[k_ji] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
+                emigration_propensity[k] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[i]);
+                emigration_propensity[k] *= n_i;
                 // m_(i j)
-                immigration_propensity[k_ij] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
+                immigration_propensity[k] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[j]);
+                immigration_propensity[k] *= n_j;
             }
-            let k_ji = j + i * n_len;
-            total_emigration_propensity += emigration_propensity[k_ji];
-            total_immigration_propensity += immigration_propensity[k_ij];
+            total_emigration_propensity += emigration_propensity[k];
+            total_immigration_propensity += immigration_propensity[k];
         }
         let total_propensity = total_emigration_propensity + total_immigration_propensity;
 
@@ -447,6 +447,7 @@ impl WildSSA {
         // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
         recorder.add_initial_state(current_time, n.as_ref());
         'simulation_loop: loop {
+            // dbg!(&n);
             let delta_t: f64 = rng.sample(rand::distributions::Open01);
             let delta_t = -delta_t.ln() / total_propensity;
             assert!(delta_t.is_finite());
@@ -465,29 +466,38 @@ impl WildSSA {
                 // (j i)
                 let k_event =
                     rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
-                let k_ji = (k_event % n_len, k_event / n_len);
-                k_ji
+                // let k_ji = (k_event % n_len, k_event / n_len);
+                // (k_event % n_len, k_event / n_len)
+                (k_event / n_len, k_event % n_len)
             } else {
                 // (i j)
                 let k_event =
                     rng.sample(WeightedIndex::new(immigration_propensity.as_ref()).unwrap());
-                let k_ij = (k_event / n_len, k_event % n_len);
-                k_ij
+                // let k_ij = (k_event / n_len, k_event % n_len);
+                // k_ij
+                // (k_event / n_len, k_event % n_len)
+                (k_event % n_len, k_event / n_len)
             };
 
             match (is_emigration, dest_patch == src_patch) {
                 // birth
                 (false, true) => {
+                    // src_patch === dest_patch
                     n[src_patch] += 1;
                     recorder.record_birth(current_time, src_patch, n[src_patch]);
                 }
                 // death
                 (true, true) => {
+                    // src_patch === dest_patch
                     n[src_patch] -= 1;
                     recorder.record_death(current_time, src_patch, n[src_patch]);
                 }
                 // emigration
                 (true, false) => {
+                    debug_assert_ne!(
+                        n[src_patch], 0,
+                        "({src_patch}, {dest_patch}), => {n:#?}\n{immigration_propensity:#?}\n{emigration_propensity:#?}"
+                    );
                     n[src_patch] -= 1;
                     n[dest_patch] += 1;
                     recorder.record_migration(
@@ -501,6 +511,7 @@ impl WildSSA {
                 // note: duplicate of the branch before, but helps with readability.
                 // immigration
                 (false, false) => {
+                    debug_assert_ne!(n[src_patch], 0, "({src_patch}, {dest_patch}), => {n:#?}\n{immigration_propensity:#?}\n{emigration_propensity:#?}");
                     n[src_patch] -= 1;
                     n[dest_patch] += 1;
                     recorder.record_migration(
@@ -512,6 +523,8 @@ impl WildSSA {
                     )
                 }
             }
+            // dbg!(is_emigration);
+            // dbg!(src_patch, dest_patch, &n);
 
             // update the columns, as there are new `N`s and thus their value has changed.
             // let mut changed_patches = Vec::with_capacity(2);
@@ -521,50 +534,64 @@ impl WildSSA {
             //     changed_patches.push(dest_patch);
             //     changed_patches.push(src_patch);
             // };
-            let changed_patches = [src_patch, dest_patch];
+            // let changed_patches = [src_patch, dest_patch];
             // alternative is `let changed_patches = [src_patch, dest_patch];`
             // and accept double updating the cases of (birth|death).
-            for col_id in changed_patches {
-                let row_in_col_range = col_id * n_len..(col_id * n_len + n_len);
-                for row_id in row_in_col_range {
-                    let (i, j) = (row_id, col_id);
-                    let k_ij = i + j * n_len;
-                    // these are now the _new_ values..
-                    let n_i = n[i] as f64;
-                    let n_j = n[j] as f64;
-                    let k_ji = j + i * n_len;
+            // dbg!(&changed_patches);
+            let criss_cross = (0..n_len)
+                .map(|x| (x, src_patch))
+                .chain((0..n_len).map(|x| (src_patch, x)))
+                .chain((0..n_len).map(|x| (x, dest_patch)))
+                .chain((0..n_len).map(|x| (dest_patch, x)));
+            for (i, j) in criss_cross {
+                let k = i + j * n_len;
+                // these are now the _new_ values..
+                let n_i = n[i] as f64;
+                let n_j = n[j] as f64;
 
-                    // remove the old values...
-                    total_emigration_propensity -= emigration_propensity[k_ji];
-                    total_immigration_propensity -= immigration_propensity[k_ij];
+                // remove the old values...
+                total_emigration_propensity -= emigration_propensity[k];
+                total_immigration_propensity -= immigration_propensity[k];
 
-                    if i == j {
-                        // diagonals means birth/death
-                        let g_rate_ratio =
-                            (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
+                if i == j {
+                    // diagonals means birth/death
+                    let g_rate_ratio =
+                        (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
 
-                        let dd_death_rate =
-                            death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
-                        let dd_birth_rate =
-                            death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
-                        // note: k_ij and k_ji distinction should not matter here.. as i == j
-                        emigration_propensity[k_ji] = dd_death_rate * n_i;
-                        immigration_propensity[k_ij] = dd_birth_rate * n_j;
-                    } else {
-                        let m0 = migration_baseline;
-                        // APPROACH: WEDGE
-                        // m_(j i)
-                        emigration_propensity[k_ji] = (m0
-                            * (n_i - carrying_capacity[i]).exp().ln_1p())
-                            / ((1_f64).ln_1p() * carrying_capacity[i]);
-                        // m_(i j)
-                        immigration_propensity[k_ij] = (m0
-                            * (n_j - carrying_capacity[j]).exp().ln_1p())
-                            / ((1_f64).ln_1p() * carrying_capacity[j]);
-                    }
-                    total_emigration_propensity += emigration_propensity[k_ji];
-                    total_immigration_propensity += immigration_propensity[k_ij];
+                    let dd_birth_rate =
+                        death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
+                    let dd_death_rate =
+                        death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
+                    // dbg!(dd_birth_rate, dd_death_rate, dd_birth_rate - dd_death_rate);
+                    // note: k_ij and k_ji distinction should not matter here.. as i == j
+                    emigration_propensity[k] = dd_death_rate * n_i;
+                    immigration_propensity[k] = dd_birth_rate * n_j;
+                    // debug_assert_eq!(k_ij, k_ij);
+                } else {
+                    let m0 = migration_baseline;
+                    // APPROACH: WEDGE
+                    // m_(j i)
+                    emigration_propensity[k] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
+                        / ((1_f64).ln_1p() * carrying_capacity[i]);
+                    emigration_propensity[k] *= n_i;
+                    // eprintln!("{}", &emigration_propensity);
+                    // m_(i j)
+                    immigration_propensity[k] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
+                        / ((1_f64).ln_1p() * carrying_capacity[j]);
+                    immigration_propensity[k] *= n_j;
+                    debug_assert!(
+                        immigration_propensity[k].is_finite(),
+                        "{m0},{n_j},{carrying_capacity:?},{j}"
+                    );
                 }
+                // dbg!(&emigration_propensity);
+                total_immigration_propensity += immigration_propensity[k];
+                total_emigration_propensity += emigration_propensity[k];
+                debug_assert!(
+                    !total_immigration_propensity.is_nan(),
+                    "{immigration_propensity:#?}"
+                );
+                debug_assert!(!total_emigration_propensity.is_nan());
             }
             // update total propensity
             total_propensity = total_emigration_propensity + total_immigration_propensity;
@@ -645,7 +672,7 @@ mod tests {
         let death_baseline = &[3.];
         let carrying_capacity = &[4.];
         let migration_baseline = 4.;
-        let migration_intercept = 0.1;
+        let migration_intercept = 0.;
 
         #[allow(unused_mut)]
         let mut wild_ssa = WildSSA::new(
@@ -658,6 +685,61 @@ mod tests {
         );
 
         dbg!(&wild_ssa);
+    }
+    #[test]
+    fn two_patch() {
+        with_r(|| {
+            let n0 = &[0, 4];
+            let birth_baseline = &[4., 4.];
+            let death_baseline = &[1., 1.];
+            let carrying_capacity = &[4., 4.];
+            let migration_baseline = 1. / (8. / 12.);
+            let migration_intercept = 0.;
+
+            #[allow(unused_mut)]
+            let mut wild_ssa = WildSSA::new(
+                n0,
+                birth_baseline,
+                death_baseline,
+                carrying_capacity,
+                migration_intercept,
+                migration_baseline,
+            );
+            let repetitions = 100;
+            // let t_max = 1.;
+            let t_max = 1.;
+            let seed = 20240817;
+
+            let output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
+        });
+    }
+
+    #[test]
+    fn three_patch_setup() {
+        with_r(|| {
+            let n0 = &[1, 4, 8];
+            let birth_baseline = &[4., 4., 4.];
+            let death_baseline = &[1., 1., 1.];
+            let carrying_capacity = &[4., 4., 5.];
+            let migration_baseline = 1. / (8. / 12.);
+            let migration_intercept = 0.;
+
+            #[allow(unused_mut)]
+            let mut wild_ssa = WildSSA::new(
+                n0,
+                birth_baseline,
+                death_baseline,
+                carrying_capacity,
+                migration_intercept,
+                migration_baseline,
+            );
+            let repetitions = 100;
+            // let t_max = 1.;
+            let t_max = 1.;
+            let seed = 20240817;
+
+            let output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
+        });
     }
 
     // #[test]
@@ -672,7 +754,6 @@ mod tests {
     //     let carrying_capacity = [5, 5];
     //     let k_dij = [1.];
     //     let t_max = 100000.;
-
     //     sim_migration_only(&n0, &migration_baseline, &carrying_capacity, &k_dij, t_max);
     // }
 
