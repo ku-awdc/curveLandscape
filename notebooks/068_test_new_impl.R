@@ -28,41 +28,42 @@ wild_ssa_model <- WildSSA$new(
 )
 
 n0
-wild_ssa_model$run_and_record_population(
-  t_max = t_max,
-  repetitions = repetitions,
-  20002224
-) -> wild_ssa_output_pop
+# wild_ssa_model$run_and_record_population(
+#   t_max = t_max,
+#   repetitions = repetitions,
+#   20002224
+# ) -> wild_ssa_output_pop
 
-wild_ssa_model$run_and_record_fixed_time_population(
-  t_max = t_max,
-  time_intervals = binned_time,
-  repetitions = repetitions,
-  20002224
-) -> wild_ssa_output
+# wild_ssa_model$run_and_record_fixed_time_population(
+#   t_max = t_max,
+#   time_intervals = binned_time,
+#   repetitions = repetitions,
+#   20002224
+# ) -> wild_ssa_output
 
-wild_ssa_output[[1]]$time %>% length()
-wild_ssa_output[[1]]$time %>% length()
+# wild_ssa_output[[1]]$time %>% length()
+# wild_ssa_output[[1]]$time %>% length()
 
-wild_ssa_output %>% transpose() %>% names()
-wild_ssa_output %>% transpose() %>% `[[`("time") %>% lengths()
+# wild_ssa_output %>% transpose() %>% names()
+# wild_ssa_output %>% transpose() %>% `[[`("time") %>% lengths()
 
 
-wild_ssa_output[[1]] %>%
-  as_tibble()
+# wild_ssa_output[[1]] %>%
+#   as_tibble()
 
-wild_ssa_output_pop[[1]] %>%
-  as_tibble()
+# wild_ssa_output_pop[[1]] %>%
+#   as_tibble()
 
-approx(
-  wild_ssa_output_pop[[1]]$time,
-  wild_ssa_output_pop[[1]]$count,
-  binned_time,
-  method = "constant"
-)$y -> approx_y
-approx_y %>% length()
-wild_ssa_output[[1]]$count %>% length()
-wild_ssa_output[[1]]$count - approx_y
+# approx(
+#   wild_ssa_output_pop[[1]]$time,
+#   wild_ssa_output_pop[[1]]$count,
+#   binned_time,
+#   method = "constant"
+# )$y -> approx_y
+# approx_y %>% length()
+# wild_ssa_output[[1]]$count %>% length()
+# wild_ssa_output[[1]]$count - approx_y
+
 # binned_ssa_output <- cbind(
 #   # binned_time = binned_time,
 #   wild_ssa_output %>%
@@ -75,32 +76,38 @@ wild_ssa_output[[1]]$count - approx_y
 # )
 
 
-wild_ssa_output %>%
-  # DEBUG
-  # `[`(c(3,6)) %>%
-  bind_rows() %>%
-  {
-    ggplot(.) +
-      aes(time, count, group = repetition) +
-      geom_line(show.legend = FALSE, aes(color = repetition)) +
-      geom_hline(
-        aes(yintercept = landscape$total_cc),
-        linetype = "dotted",
-        linewidth = 1.1
-      ) +
-      ggpubr::theme_pubclean(15) +
-      NULL
-  }
+# wild_ssa_output %>%
+#   # DEBUG
+#   # `[`(c(3,6)) %>%
+#   bind_rows() %>%
+#   {
+#     ggplot(.) +
+#       aes(time, count, group = repetition) +
+#       geom_line(show.legend = FALSE, aes(color = repetition)) +
+#       geom_hline(
+#         aes(yintercept = landscape$total_cc),
+#         linetype = "dotted",
+#         linewidth = 1.1
+#       ) +
+#       ggpubr::theme_pubclean(15) +
+#       NULL
+#   }
 
 
 
 bench::mark(
-  all_records = wild_ssa_model$run_and_record_population(
-    t_max = t_max,
-    repetitions = repetitions,
-    20002224
-  ),
-  recording_fixed_intervals = wild_ssa_model$run_and_record_fixed_time_population(
+  # all_records = wild_ssa_model$run_and_record_population(
+  #   t_max = t_max,
+  #   repetitions = repetitions,
+  #   20002224
+  # ),
+  # recording_fixed_intervals = wild_ssa_model$run_and_record_fixed_time_population(
+  #   t_max = t_max,
+  #   time_intervals = binned_time,
+  #   repetitions = repetitions,
+  #   20002224
+  # ),
+  recording_fixed_intervals = wild_ssa_model$run_and_record_fixed_time_population_par(
     t_max = t_max,
     time_intervals = binned_time,
     repetitions = repetitions,

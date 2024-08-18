@@ -5,6 +5,9 @@ use itertools::repeat_n;
 use itertools::Itertools;
 use rand::distributions::WeightedIndex;
 use rand::{rngs::SmallRng, SeedableRng};
+#[cfg(feature = "rayon")]
+#[allow(unused_imports)]
+use rayon::prelude::*;
 
 /// Contains all the changes that occurred in the population on a patch and time level.
 ///
@@ -555,6 +558,36 @@ impl WildSSA {
             //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
             fixed_interval_population_recorder
         }))
+    }
+
+    // #[cfg(feature = "rayon")]
+    pub fn run_and_record_fixed_time_population_par(
+        &self,
+        time_intervals: &[f64],
+        t_max: f64,
+        repetitions: usize,
+        seed: u64,
+    ) -> List {
+        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
+        List::from_values(
+            (0..repetitions)
+                .into_par_iter()
+                .map(|repetition| {
+                    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+                    rng.set_stream(repetition as _);
+                    let mut fixed_interval_population_recorder =
+                        PopulationFixedRecord::new(repetition, time_intervals);
+                    self.clone().run_until(
+                        t_max,
+                        &mut rng,
+                        &mut fixed_interval_population_recorder,
+                    );
+
+                    //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
+                    fixed_interval_population_recorder
+                })
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn internal_debug_display(&self) -> String {
