@@ -324,9 +324,8 @@ impl WildSSA {
         let mut immigration_propensity: Box<[_]> = tmp.into();
         let m0 = migration_baseline;
         for k in 0..(n_len.pow(2)) {
-            let (i, j) = (k / n_len, k % n_len);
-            let k_ji = j + i * n_len;
-            let k = k_ji;
+            let (i, j) = (k % n_len, k / n_len);
+            let k_ij = i + j * n_len;
             // dbg!(k, (i, j));
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
@@ -339,22 +338,22 @@ impl WildSSA {
                     death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
                 let dd_death_rate =
                     death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
-                immigration_propensity[k] = dd_birth_rate * n_i;
+                immigration_propensity[k_ij] = dd_birth_rate * n_i;
                 // note: the `k_ij` vs  `k_ji` distinction does not matter here, as i == j.
-                emigration_propensity[k] = dd_death_rate * n_j;
+                emigration_propensity[k_ij] = dd_death_rate * n_j;
             } else {
                 // APPROACH: WEDGE
                 // m_(j i)
-                emigration_propensity[k] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
+                emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[i]);
-                emigration_propensity[k] *= n_i;
+                emigration_propensity[k_ij] *= n_i;
                 // m_(i j)
-                immigration_propensity[k] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
+                immigration_propensity[k_ij] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[j]);
-                immigration_propensity[k] *= n_j;
+                immigration_propensity[k_ij] *= n_j;
             }
-            total_emigration_propensity += emigration_propensity[k];
-            total_immigration_propensity += immigration_propensity[k];
+            total_emigration_propensity += emigration_propensity[k_ij];
+            total_immigration_propensity += immigration_propensity[k_ij];
         }
         let total_propensity = total_emigration_propensity + total_immigration_propensity;
 
@@ -448,12 +447,6 @@ impl WildSSA {
         // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
         recorder.add_initial_state(current_time, n.as_ref());
         'simulation_loop: loop {
-            // dbg!(
-            //     &n,
-            //     total_propensity,
-            //     total_immigration_propensity,
-            //     total_immigration_propensity
-            // );
             let delta_t: f64 = rng.sample(rand::distributions::Open01);
             let delta_t = -delta_t.ln() / total_propensity;
             assert!(delta_t.is_finite());
@@ -472,17 +465,12 @@ impl WildSSA {
                 // (j i)
                 let k_event =
                     rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
-                // let k_ji = (k_event % n_len, k_event / n_len);
-                (k_event % n_len, k_event / n_len)
-                // (k_event / n_len, k_event % n_len)
+                (k_event / n_len, k_event % n_len)
             } else {
                 // (i j)
                 let k_event =
                     rng.sample(WeightedIndex::new(immigration_propensity.as_ref()).unwrap());
-                // let k_ij = (k_event / n_len, k_event % n_len);
-                // k_ij
-                (k_event / n_len, k_event % n_len)
-                // (k_event % n_len, k_event / n_len)
+                (k_event % n_len, k_event / n_len)
             };
 
             match (is_emigration, dest_patch == src_patch) {
@@ -550,16 +538,14 @@ impl WildSSA {
                 .chain((0..n_len).map(|x| (x, dest_patch)))
                 .chain((0..n_len).map(|x| (dest_patch, x)));
             for (i, j) in criss_cross {
-                let k = i + j * n_len;
-                let k_ji = j + i * n_len;
-                let k = k_ji;
+                let k_ij = i + j * n_len;
                 // these are now the _new_ values..
                 let n_i = n[i] as f64;
                 let n_j = n[j] as f64;
 
                 // remove the old values...
-                total_emigration_propensity -= emigration_propensity[k];
-                total_immigration_propensity -= immigration_propensity[k];
+                total_emigration_propensity -= emigration_propensity[k_ij];
+                total_immigration_propensity -= immigration_propensity[k_ij];
 
                 if i == j {
                     // diagonals means birth/death
@@ -572,29 +558,29 @@ impl WildSSA {
                         death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
                     // dbg!(dd_birth_rate, dd_death_rate, dd_birth_rate - dd_death_rate);
                     // note: k_ij and k_ji distinction should not matter here.. as i == j
-                    emigration_propensity[k] = dd_death_rate * n_i;
-                    immigration_propensity[k] = dd_birth_rate * n_j;
+                    emigration_propensity[k_ij] = dd_death_rate * n_i;
+                    immigration_propensity[k_ij] = dd_birth_rate * n_j;
                     // debug_assert_eq!(k_ij, k_ij);
                 } else {
                     let m0 = migration_baseline;
                     // APPROACH: WEDGE
                     // m_(j i)
-                    emigration_propensity[k] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
+                    emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
                         / ((1_f64).ln_1p() * carrying_capacity[i]);
-                    emigration_propensity[k] *= n_i;
+                    emigration_propensity[k_ij] *= n_i;
                     // eprintln!("{}", &emigration_propensity);
                     // m_(i j)
-                    immigration_propensity[k] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
+                    immigration_propensity[k_ij] = (m0
+                        * (n_j - carrying_capacity[j]).exp().ln_1p())
                         / ((1_f64).ln_1p() * carrying_capacity[j]);
-                    immigration_propensity[k] *= n_j;
+                    immigration_propensity[k_ij] *= n_j;
                     debug_assert!(
-                        immigration_propensity[k].is_finite(),
+                        immigration_propensity[k_ij].is_finite(),
                         "{m0},{n_j},{carrying_capacity:?},{j}"
                     );
                 }
-                // dbg!(&emigration_propensity);
-                total_immigration_propensity += immigration_propensity[k];
-                total_emigration_propensity += emigration_propensity[k];
+                total_immigration_propensity += immigration_propensity[k_ij];
+                total_emigration_propensity += emigration_propensity[k_ij];
                 debug_assert!(
                     !total_immigration_propensity.is_nan(),
                     "{immigration_propensity:#?}"
@@ -715,7 +701,7 @@ mod tests {
             );
             let repetitions = 100;
             // let t_max = 1.;
-            let t_max = 1.;
+            let t_max = 25.;
             let seed = 20240817;
 
             let output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
@@ -743,7 +729,7 @@ mod tests {
             );
             let repetitions = 100;
             // let t_max = 1.;
-            let t_max = 1.;
+            let t_max = 25.;
             let seed = 20240817;
 
             let output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
