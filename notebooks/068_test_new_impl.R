@@ -11,7 +11,7 @@ migration_intercept <- 0
 
 landscape <- all_landscapes %>% 
   transpose() %>% 
-  `[[`(5)
+  `[[`(10)
 
 
 n0 <- landscape$grid$Capacity %>%
@@ -33,3 +33,10 @@ wild_ssa_model$run_and_record_population(
   repetitions = repetitions,
   20002224
 ) -> wild_ssa_output
+wild_ssa_output %>% 
+  bind_rows() %>% {
+    ggplot(.) +
+      aes(time, count, group = repetition) +
+      geom_line(show.legend = FALSE, aes(color = repetition)) +
+      NULL
+  }

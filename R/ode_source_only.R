@@ -45,6 +45,7 @@ ode_source_only_wedge <- function(growth_rate, carrying_capacity, n0, migration_
           migration_baseline * pmax(y - (cc_modified - 1), 0)
         ) / cc_modified
         mj <- mj + migration_intercept
+        # all m_i terms without the current i'th term would be all m_j terms.
         dN <- dN + sum(mj * y) - mj * y * n_len
 
         list(dN)

@@ -8,6 +8,8 @@ ode_source_only_wedge(
   growth_rate,
   carrying_capacity,
   n0,
+  migration_offset = 0,
+  migration_intercept = 0,
   migration_baseline,
   delta_t,
   t_max = 25,
