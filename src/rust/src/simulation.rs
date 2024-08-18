@@ -325,7 +325,8 @@ impl WildSSA {
         let m0 = migration_baseline;
         for k in 0..(n_len.pow(2)) {
             let (i, j) = (k / n_len, k % n_len);
-            // let k_ji = j + i * n_len;
+            let k_ji = j + i * n_len;
+            let k = k_ji;
             // dbg!(k, (i, j));
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
@@ -447,7 +448,12 @@ impl WildSSA {
         // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
         recorder.add_initial_state(current_time, n.as_ref());
         'simulation_loop: loop {
-            // dbg!(&n);
+            // dbg!(
+            //     &n,
+            //     total_propensity,
+            //     total_immigration_propensity,
+            //     total_immigration_propensity
+            // );
             let delta_t: f64 = rng.sample(rand::distributions::Open01);
             let delta_t = -delta_t.ln() / total_propensity;
             assert!(delta_t.is_finite());
@@ -467,16 +473,16 @@ impl WildSSA {
                 let k_event =
                     rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
                 // let k_ji = (k_event % n_len, k_event / n_len);
-                // (k_event % n_len, k_event / n_len)
-                (k_event / n_len, k_event % n_len)
+                (k_event % n_len, k_event / n_len)
+                // (k_event / n_len, k_event % n_len)
             } else {
                 // (i j)
                 let k_event =
                     rng.sample(WeightedIndex::new(immigration_propensity.as_ref()).unwrap());
                 // let k_ij = (k_event / n_len, k_event % n_len);
                 // k_ij
-                // (k_event / n_len, k_event % n_len)
-                (k_event % n_len, k_event / n_len)
+                (k_event / n_len, k_event % n_len)
+                // (k_event % n_len, k_event / n_len)
             };
 
             match (is_emigration, dest_patch == src_patch) {
@@ -545,6 +551,8 @@ impl WildSSA {
                 .chain((0..n_len).map(|x| (dest_patch, x)));
             for (i, j) in criss_cross {
                 let k = i + j * n_len;
+                let k_ji = j + i * n_len;
+                let k = k_ji;
                 // these are now the _new_ values..
                 let n_i = n[i] as f64;
                 let n_j = n[j] as f64;
