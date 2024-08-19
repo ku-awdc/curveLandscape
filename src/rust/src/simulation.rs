@@ -642,7 +642,7 @@ impl WildSSA {
                 // (j i)
                 let k_event =
                     rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
-                // k => (i,j): (k % n, k / n)
+                // note: k => (i,j): (k % n, k / n)
                 (k_event / n_len, k_event % n_len)
             } else {
                 // (i j)
