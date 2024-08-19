@@ -452,10 +452,8 @@ impl WildSSA {
         let mut emigration_propensity: Box<[_]> = tmp.clone().into();
         let mut immigration_propensity: Box<[_]> = tmp.into();
         let m0 = migration_baseline;
-        for k in 0..(n_len.pow(2)) {
-            let (i, j) = (k % n_len, k / n_len);
-            let k_ij = i + j * n_len;
-            // dbg!(k, (i, j));
+        for k_ij in 0..(n_len.pow(2)) {
+            let (i, j) = (k_ij % n_len, k_ij / n_len);
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
 
@@ -467,11 +465,11 @@ impl WildSSA {
                     death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
                 let dd_death_rate =
                     death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
-                immigration_propensity[k_ij] = dd_birth_rate * n_i;
                 // note: the `k_ij` vs  `k_ji` distinction does not matter here, as i == j.
                 emigration_propensity[k_ij] = dd_death_rate * n_j;
+                immigration_propensity[k_ij] = dd_birth_rate * n_i;
             } else {
-                // APPROACH: WEDGE
+                // APPROACH: SMOOTH
                 // m_(j i)
                 emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
                     / ((1_f64).ln_1p() * carrying_capacity[i]);
@@ -644,6 +642,7 @@ impl WildSSA {
                 // (j i)
                 let k_event =
                     rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
+                // k => (i,j): (k % n, k / n)
                 (k_event / n_len, k_event % n_len)
             } else {
                 // (i j)
@@ -742,7 +741,7 @@ impl WildSSA {
                     // debug_assert_eq!(k_ij, k_ij);
                 } else {
                     let m0 = migration_baseline;
-                    // APPROACH: WEDGE
+                    // APPROACH: SMOOTH
                     // m_(j i)
                     emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
                         / ((1_f64).ln_1p() * carrying_capacity[i]);
