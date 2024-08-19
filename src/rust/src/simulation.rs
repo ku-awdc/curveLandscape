@@ -227,14 +227,15 @@ pub(crate) struct PopulationFixedRecord {
 }
 
 impl PopulationFixedRecord {
-    pub fn new(repetition: usize, time_interval: &[f64]) -> Self {
+    pub fn new(repetition: usize, fixed_time_points: &[f64]) -> Self {
         // TODO: check that it is non-decreasing time points
-        assert!(!time_interval.is_empty());
+        assert!(!fixed_time_points.is_empty());
 
-        let time = Vec::from(time_interval);
-        let count = Vec::with_capacity(time_interval.len());
-        // let count = vec![u32::MAX; time.len()];
-        let current_time = time[0];
+        // these are the fixed time points
+        let time = Vec::from(fixed_time_points);
+        let count = Vec::with_capacity(fixed_time_points.len());
+
+        let current_time = time[0]; // invalid state, must be rectified before using in algorithm
         let current_count = 0; // invalid state, must be rectified before using in algorithm
         let current_time_index = 0; // good! we need to record the first time point.
         Self {
@@ -257,7 +258,10 @@ impl Recorder for PopulationFixedRecord {
         //     (self.current_time - time).abs() <= 0.00001,
         //     "initial requested time must match the initial simulated time"
         // );
-        assert!(self.current_time <= time, "we didn't skip anything..");
+        assert!(
+            self.time[self.current_time_index] >= time,
+            "we didn't skip anything.."
+        );
         let total_n0 = n.iter().sum();
         self.current_count = total_n0;
         self.current_time = time;
@@ -318,7 +322,7 @@ impl Recorder for PopulationFixedRecord {
             // since this is the last time point there is no need to go further..
         }
         // debug assert?
-        assert!(t_max >= self.time[self.current_time_index]);
+        assert!(t_max >= *self.time.last().unwrap());
         // sanity check: did we record everything we set out to do?
         // but also ensures the output is uniform.
         assert_eq!(
@@ -542,7 +546,7 @@ impl WildSSA {
 
     pub fn run_and_record_fixed_time_population(
         &self,
-        time_intervals: &[f64],
+        fixed_time_points: &[f64],
         t_max: f64,
         repetitions: usize,
         seed: u64,
@@ -551,7 +555,7 @@ impl WildSSA {
         // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
         List::from_iter((0..repetitions).map(|repetition| {
             let mut fixed_interval_population_recorder =
-                PopulationFixedRecord::new(repetition, time_intervals);
+                PopulationFixedRecord::new(repetition, fixed_time_points);
             self.clone()
                 .run_until(t_max, &mut rng, &mut fixed_interval_population_recorder);
 
