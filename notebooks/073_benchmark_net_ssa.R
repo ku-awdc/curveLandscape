@@ -22,10 +22,10 @@ tibble(
 ) -> configuration
 transpose(configuration)[[1]]$cc$cc
 
-t_max <- 5.25
-fixed_time_points <- seq.default(from = 0, to = t_max, by= 0.25)
+t_max <- 10
+fixed_time_points <- seq.default(from = 0, to = t_max, by = 1 / 12)
 fixed_time_points %>% tail()
-repetitions <- 10
+repetitions <- 25
 
 
 # // SANITY CHECK
@@ -38,7 +38,7 @@ WildSSA$new(
   death_baseline = rep.int(1, times = landscape$n_len),
   carrying_capacity = landscape$cc$cc,
   migration_intercept = 0,
-  migration_baseline = 1 / (8 / 10)
+  migration_baseline = 1 / (8 / 12)
   # migration_baseline = 0
 ) -> wild_ssa_model
 
@@ -83,7 +83,7 @@ bench::press(
           death_baseline = rep.int(1, times = landscape$n_len),
           carrying_capacity = landscape$cc$cc,
           migration_intercept = 0,
-          migration_baseline = 1 / (8 / 10)
+          migration_baseline = 1 / (8 / 12)
         ) -> wild_ssa_model
         wild_ssa_model$run_and_record_fixed_time_population_par(
           t_max = t_max,
@@ -96,11 +96,42 @@ bench::press(
   }
 ) -> bm_press_result
 
-bm_press_result %>% 
-  mutate(landscape = seq_len(length(landscape))) %>% 
-  plot() %>% {
-    . + facet_wrap(NULL)
+bm_press_result %>%
+  unnest_wider(landscape) %>%
+  mutate(landscape = n_len) %>%
+  mutate(time_len = lengths(time)) %>%
+  print(width = Inf, n = Inf) %>%
+  identity() %>%
+  {
+    ggplot(.) +
+      geom_line() +
+      geom_point() +
+      aes(n_len, median) +
+      labs(x = "Total patches", y = "median [seconds]") +
+      ggpubr::theme_pubclean(15) +
+      NULL
   }
+
+
+  fs::dir_create("figures")
+  ggsave(
+    filename = "figures/073_benchmarks.svg",
+    device = svglite::svglite,
+    # scaling = 3,
+    scale = 1.9,
+    # width = 2*4.27,
+    # height = 2.5
+  )
+
+
+
+# plot()
+# mutate(landscape = seq_len(length(landscape))) %>%
+# plot() %>% {
+#   . +
+
+#     facet_wrap(NULL)
+# }
 # bm_press_result %>% mutate(landscape = landscape %>% map_int(\(landscape) seq_len(nrow(landscape$n_len[1]))))
 
 
