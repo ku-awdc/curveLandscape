@@ -266,20 +266,30 @@ impl Recorder for PopulationFixedRecord {
         self.current_count = total_n0;
         self.current_time = time;
         // is this initial time of interest?
-        if self.time[self.current_time_index] <= time {
-            // we crossed the time point we are interested in
-            self.count.push(self.current_count);
-            self.current_time_index += 1;
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.push(self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
         }
     }
 
     fn record_birth(&mut self, time: f64, _patch_id: usize, _n_patch: u32) {
         self.current_time = time;
         // is this initial time of interest?
-        if self.time[self.current_time_index] <= self.current_time {
-            // we crossed the time point we are interested in
-            self.count.push(self.current_count);
-            self.current_time_index += 1;
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.push(self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
         }
         self.current_count += 1;
     }
@@ -287,10 +297,15 @@ impl Recorder for PopulationFixedRecord {
     fn record_death(&mut self, time: f64, _patch_id: usize, _n_patch: u32) {
         self.current_time = time;
         // is this initial time of interest?
-        if self.time[self.current_time_index] <= self.current_time {
-            // we crossed the time point we are interested in
-            self.count.push(self.current_count);
-            self.current_time_index += 1;
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.push(self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
         }
         self.current_count -= 1;
     }
@@ -306,10 +321,15 @@ impl Recorder for PopulationFixedRecord {
         self.current_time = time;
         // the population count doesn't change with a migration event,
         // but we might have crossed the time points that we are interested in
-        if self.time[self.current_time_index] <= self.current_time {
-            // we crossed the time point we are interested in
-            self.count.push(self.current_count);
-            self.current_time_index += 1;
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.push(self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
         }
     }
 
@@ -317,14 +337,24 @@ impl Recorder for PopulationFixedRecord {
         // TODO: what is it that needs to be done here anyways?
         self.current_time = t_max;
         // self.current_count; // unchanged
-        if self.time[self.current_time_index] <= self.current_time {
-            self.count.push(self.current_count);
-            // since this is the last time point there is no need to go further..
+        loop {
+            if self.time[self.current_time_index] <= t_max {
+                // we crossed the time point we are interested in
+                self.count.push(self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.current_time_index >= self.time.len() {
+                break;
+            }
+            if self.time[self.current_time_index] > t_max {
+                break;
+            }
         }
         // debug assert?
         assert!(t_max >= *self.time.last().unwrap());
         // sanity check: did we record everything we set out to do?
         // but also ensures the output is uniform.
+        // dbg!(&self);
         assert_eq!(
             self.count.len(),
             self.time.len(),
@@ -550,14 +580,12 @@ impl WildSSA {
         seed: u64,
     ) -> List {
         let mut rng = SmallRng::seed_from_u64(seed);
-        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
         List::from_iter((0..repetitions).map(|repetition| {
             let mut fixed_interval_population_recorder =
                 PopulationFixedRecord::new(repetition, fixed_time_points);
             self.clone()
                 .run_until(t_max, &mut rng, &mut fixed_interval_population_recorder);
 
-            //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
             fixed_interval_population_recorder
         }))
     }
@@ -565,12 +593,11 @@ impl WildSSA {
     // #[cfg(feature = "rayon")]
     pub fn run_and_record_fixed_time_population_par(
         &self,
-        time_intervals: &[f64],
+        fixed_time_points: &[f64],
         t_max: f64,
         repetitions: usize,
         seed: u64,
     ) -> List {
-        // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
         List::from_values(
             (0..repetitions)
                 .into_par_iter()
@@ -578,14 +605,13 @@ impl WildSSA {
                     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
                     rng.set_stream(repetition as _);
                     let mut fixed_interval_population_recorder =
-                        PopulationFixedRecord::new(repetition, time_intervals);
+                        PopulationFixedRecord::new(repetition, fixed_time_points);
                     self.clone().run_until(
                         t_max,
                         &mut rng,
                         &mut fixed_interval_population_recorder,
                     );
 
-                    //TODO: if `.with_capacity`, do also shrink the storage after the process is done...
                     fixed_interval_population_recorder
                 })
                 .collect::<Vec<_>>(),
