@@ -29,3 +29,8 @@ extendr-engine = { git = "https://github.com/extendr/extendr.git" }
 default = ["std", "rayon"]
 rayon = ["dep:rayon", "rand_chacha"]
 std = ["num-traits/std"]
+
+# For debug purposes..
+[profile.release]
+overflow-checks = true
+debug-assertions = true

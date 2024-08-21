@@ -2,7 +2,8 @@ test_that("equal to R's approx", {
   # R's approx(method = "constant", f = 0)
   # must agree with the `FixedPopulationRecorder` output in `WildSSA`
 
-  wild_ssa_model <- WildSSA$new(
+  # wild_ssa_model <- WildSSA$new_static(
+  wild_ssa_model <- WildSSA$new_wedge(
     n0 = as.integer(c(4, 6, 2, 0)),
     birth_baseline = rep.int(4, times = 4),
     death_baseline = rep.int(1, times = 4),
