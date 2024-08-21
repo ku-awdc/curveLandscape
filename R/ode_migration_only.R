@@ -47,6 +47,8 @@ ode_migration_only <- function(growth_rate, carrying_capacity, n0, migration_off
         # # all m_i terms without the current i'th term would be all m_j terms.
         # dN <- dN + sum(mj * y) - mj * y * n_len
 
+        # TODO: figure out a way (together with  below) to also just report `sum(y)`
+
         list(dN)
       })
     },
