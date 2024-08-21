@@ -538,6 +538,7 @@ impl WildSSA {
     //     recorder: &mut impl Recorder,
     // ) {}
 
+    /// Runs the model for `repetitions`, on the seed `seed`, and records every change on every patch throughout.
     pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
         let mut rng = SmallRng::seed_from_u64(seed);
 
@@ -551,6 +552,27 @@ impl WildSSA {
         }))
     }
 
+    /// Parallel version of [`run_and_record_patch`].
+    ///
+    /// [`run_and_record_patch`]: Self::run_and_record_patch
+    pub fn run_and_record_patch_par(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
+        List::from_values(
+            (0..repetitions)
+                .into_par_iter()
+                .map(|repetition| {
+                    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+                    rng.set_stream(repetition as _);
+                    let mut patch_recorder = PatchRecord::new(repetition);
+                    self.clone().run_until(t_max, &mut rng, &mut patch_recorder);
+
+                    patch_recorder
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// Runs and records the model outputs at every event, but aggregated on the population level.
+    ///
     pub fn run_and_record_population(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
         let mut rng = SmallRng::seed_from_u64(seed);
         // TODO: add ".from_capacity" version, that uses the largest size of simulation as the capacity..
@@ -564,6 +586,28 @@ impl WildSSA {
         }))
     }
 
+    /// Parallel version of [`run_and_record_population`].
+    ///
+    /// [`run_and_record_population`]: Self::run_and_record_population
+    pub fn run_and_record_population_par(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
+        List::from_values(
+            (0..repetitions)
+                .into_par_iter()
+                .map(|repetition| {
+                    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+                    rng.set_stream(repetition as _);
+                    let mut population_recorder = PopulationRecord::new(repetition);
+                    self.clone()
+                        .run_until(t_max, &mut rng, &mut population_recorder);
+
+                    population_recorder
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// Runs the model and record the population-level count, only recording at the `fixed_time_points`.
+    ///
     pub fn run_and_record_fixed_time_population(
         &self,
         fixed_time_points: &[f64],
@@ -583,6 +627,10 @@ impl WildSSA {
     }
 
     // #[cfg(feature = "rayon")]
+
+    /// Parallel version of [`run_and_record_fixed_time_population`].
+    ///
+    /// [`run_and_record_fixed_time_population`]: Self::run_and_record_fixed_time_population
     pub fn run_and_record_fixed_time_population_par(
         &self,
         fixed_time_points: &[f64],
