@@ -37,6 +37,10 @@ WildSSA$run_and_record_population <- function(t_max, repetitions, seed) .Call(wr
 
 WildSSA$run_and_record_population_par <- function(t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_population_par, self, t_max, repetitions, seed)
 
+WildSSA$run_and_record_fixed_time_patches <- function(fixed_time_points, t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_fixed_time_patches, self, fixed_time_points, t_max, repetitions, seed)
+
+WildSSA$run_and_record_fixed_time_patches_par <- function(fixed_time_points, t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_fixed_time_patches_par, self, fixed_time_points, t_max, repetitions, seed)
+
 WildSSA$run_and_record_fixed_time_population <- function(fixed_time_points, t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_fixed_time_population, self, fixed_time_points, t_max, repetitions, seed)
 
 WildSSA$run_and_record_fixed_time_population_par <- function(fixed_time_points, t_max, repetitions, seed) .Call(wrap__WildSSA__run_and_record_fixed_time_population_par, self, fixed_time_points, t_max, repetitions, seed)

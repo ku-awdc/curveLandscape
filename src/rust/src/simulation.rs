@@ -1002,6 +1002,58 @@ impl WildSSA {
         )
     }
 
+    /// Runs the model and record the patches-level count, only recording at the `fixed_time_points`.
+    ///
+    pub fn run_and_record_fixed_time_patches(
+        &self,
+        fixed_time_points: &[f64],
+        t_max: f64,
+        repetitions: usize,
+        seed: u64,
+    ) -> List {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        List::from_iter((0..repetitions).map(|repetition| {
+            let mut fixed_interval_patches_recorder =
+                PatchFixedRecord::new(repetition, self.configuration.n_len, fixed_time_points);
+            self.clone()
+                .run_until(t_max, &mut rng, &mut fixed_interval_patches_recorder);
+
+            fixed_interval_patches_recorder
+        }))
+    }
+
+    // #[cfg(feature = "rayon")]
+
+    /// Parallel version of [`run_and_record_fixed_time_patches`].
+    ///
+    /// [`run_and_record_fixed_time_patches`]: Self::run_and_record_fixed_time_patches
+    pub fn run_and_record_fixed_time_patches_par(
+        &self,
+        fixed_time_points: &[f64],
+        t_max: f64,
+        repetitions: usize,
+        seed: u64,
+    ) -> List {
+        List::from_values(
+            (0..repetitions)
+                .into_par_iter()
+                .map(|repetition| {
+                    let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+                    rng.set_stream(repetition as _);
+                    let mut fixed_interval_patches_recorder = PatchFixedRecord::new(
+                        repetition,
+                        self.configuration.n_len,
+                        fixed_time_points,
+                    );
+                    self.clone()
+                        .run_until(t_max, &mut rng, &mut fixed_interval_patches_recorder);
+
+                    fixed_interval_patches_recorder
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
     /// Runs the model and record the population-level count, only recording at the `fixed_time_points`.
     ///
     pub fn run_and_record_fixed_time_population(
