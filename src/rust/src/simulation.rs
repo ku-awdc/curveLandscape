@@ -419,6 +419,7 @@ struct WildSSA {
 
 #[extendr]
 impl WildSSA {
+    /// Construct a new model object. In order to run this, the `run_*` methods must be used.
     pub fn new(
         n0: &[i32],
         birth_baseline: &[f64],
@@ -481,34 +482,25 @@ impl WildSSA {
         let tmp = vec![0.; n_len.pow(2)];
         let mut emigration_propensity: Box<[_]> = tmp.clone().into();
         let mut immigration_propensity: Box<[_]> = tmp.into();
-        let m0 = migration_baseline;
         for k_ij in 0..(n_len.pow(2)) {
             let (i, j) = (k_ij % n_len, k_ij / n_len);
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
 
-            if i == j {
-                // diagonals means birth/death
-                let g_rate_ratio = (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
-
-                let dd_birth_rate =
-                    death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
-                let dd_death_rate =
-                    death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
-                // note: the `k_ij` vs  `k_ji` distinction does not matter here, as i == j.
-                emigration_propensity[k_ij] = dd_death_rate * n_j;
-                immigration_propensity[k_ij] = dd_birth_rate * n_i;
-            } else {
-                // APPROACH: SMOOTH
-                // m_(j i)
-                emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
-                    / ((1_f64).ln_1p() * carrying_capacity[i]);
-                emigration_propensity[k_ij] *= n_i;
-                // m_(i j)
-                immigration_propensity[k_ij] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
-                    / ((1_f64).ln_1p() * carrying_capacity[j]);
-                immigration_propensity[k_ij] *= n_j;
-            }
+            // }
+            f_migration_smooth(
+                i,
+                j,
+                k_ij,
+                &birth_baseline,
+                &death_baseline,
+                &carrying_capacity,
+                n_i,
+                n_j,
+                migration_baseline,
+                &mut immigration_propensity,
+                &mut emigration_propensity,
+            );
             total_emigration_propensity += emigration_propensity[k_ij];
             total_immigration_propensity += immigration_propensity[k_ij];
         }
@@ -624,6 +616,9 @@ impl WildSSA {
 }
 
 impl WildSSA {
+    /// This function consumes a model object, and in return runs the simulation from
+    /// current time until `t_max`. There are multiple recorders available, with various
+    /// advantages and granularity of resolution.
     #[inline(always)]
     fn run_until(mut self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
         assert!(self.current_time <= t_max);
@@ -751,38 +746,19 @@ impl WildSSA {
                 total_emigration_propensity -= emigration_propensity[k_ij];
                 total_immigration_propensity -= immigration_propensity[k_ij];
 
-                if i == j {
-                    // diagonals means birth/death
-                    let g_rate_ratio =
-                        (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
-
-                    let dd_birth_rate =
-                        death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
-                    let dd_death_rate =
-                        death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
-                    // dbg!(dd_birth_rate, dd_death_rate, dd_birth_rate - dd_death_rate);
-                    // note: k_ij and k_ji distinction should not matter here.. as i == j
-                    emigration_propensity[k_ij] = dd_death_rate * n_i;
-                    immigration_propensity[k_ij] = dd_birth_rate * n_j;
-                    // debug_assert_eq!(k_ij, k_ij);
-                } else {
-                    let m0 = migration_baseline;
-                    // APPROACH: SMOOTH
-                    // m_(j i)
-                    emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
-                        / ((1_f64).ln_1p() * carrying_capacity[i]);
-                    emigration_propensity[k_ij] *= n_i;
-                    // eprintln!("{}", &emigration_propensity);
-                    // m_(i j)
-                    immigration_propensity[k_ij] = (m0
-                        * (n_j - carrying_capacity[j]).exp().ln_1p())
-                        / ((1_f64).ln_1p() * carrying_capacity[j]);
-                    immigration_propensity[k_ij] *= n_j;
-                    debug_assert!(
-                        immigration_propensity[k_ij].is_finite(),
-                        "{m0},{n_j},{carrying_capacity:?},{j}"
-                    );
-                }
+                f_migration_smooth(
+                    i,
+                    j,
+                    k_ij,
+                    &birth_baseline,
+                    &death_baseline,
+                    &carrying_capacity,
+                    n_i,
+                    n_j,
+                    migration_baseline,
+                    immigration_propensity,
+                    emigration_propensity,
+                );
                 total_immigration_propensity += immigration_propensity[k_ij];
                 total_emigration_propensity += emigration_propensity[k_ij];
                 debug_assert!(
@@ -807,38 +783,137 @@ impl WildSSA {
     }
 }
 
+/// Calculates $m_(i j) := m_0 / K_j$
+///
+#[allow(clippy::too_many_arguments)]
 #[inline(always)]
-fn f_birth_death_rate(
-    n: f64,
-    beta0: f64,
-    mu0: f64,
-    cc: f64,
-    beta: &mut f64,
-    mu: &mut f64,
-    g_div_cc: &mut f64,
+fn f_migration_static(
+    i: usize,
+    j: usize,
+    k_ij: usize,
+    birth_baseline: &[f64],
+    death_baseline: &[f64],
+    carrying_capacity: &[f64],
+    n_i: f64,
+    n_j: f64,
+    migration_baseline: f64,
+    // output
+    immigration_propensity: &mut Box<[f64]>,
+    emigration_propensity: &mut Box<[f64]>,
 ) {
-    *g_div_cc = (beta0 - mu0) / cc;
+    if i == j {
+        // diagonals means birth/death
+        let g_rate_ratio = (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
 
-    if n > cc {
-        *mu = mu0 + ((n - cc) * (beta0 - mu0)) / cc;
-        *beta = mu0
+        let dd_birth_rate = death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
+        let dd_death_rate = death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
+        // dbg!(dd_birth_rate, dd_death_rate, dd_birth_rate - dd_death_rate);
+        // note: k_ij and k_ji distinction should not matter here.. as i == j
+        emigration_propensity[k_ij] = dd_death_rate * n_i;
+        immigration_propensity[k_ij] = dd_birth_rate * n_j;
     } else {
-        *mu = mu0;
-        *beta = mu0 + ((cc - n) * (beta0 - mu0)) / cc
-    };
+        let m0 = migration_baseline;
+        // APPROACH: STATIC
+        // m_(j i) • N_i
+        emigration_propensity[k_ij] = (m0 * n_i) / carrying_capacity[i];
+        // m_(i j) • N_j
+        immigration_propensity[k_ij] = (m0 * n_j) / carrying_capacity[j];
+        debug_assert!(
+            immigration_propensity[k_ij].is_finite(),
+            "{m0},{n_j},{carrying_capacity:?},{j}"
+        );
+    }
 }
 
+/// Calculates the wedge-definition of $m_(i j)$.
+#[allow(clippy::too_many_arguments)]
 #[inline(always)]
-fn f_migration_wedge(n: f64, migration_baseline: f64, cc: f64, mig: &mut f64) {
-    *mig = ((n - (cc - 1.)).max(0.) * migration_baseline) / cc;
+fn f_migration_wedge(
+    i: usize,
+    j: usize,
+    k_ij: usize,
+    birth_baseline: &[f64],
+    death_baseline: &[f64],
+    carrying_capacity: &[f64],
+    n_i: f64,
+    n_j: f64,
+    migration_baseline: f64,
+    // output
+    immigration_propensity: &mut Box<[f64]>,
+    emigration_propensity: &mut Box<[f64]>,
+) {
+    if i == j {
+        // diagonals means birth/death
+        let g_rate_ratio = (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
+
+        let dd_birth_rate = death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
+        let dd_death_rate = death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
+        // dbg!(dd_birth_rate, dd_death_rate, dd_birth_rate - dd_death_rate);
+        // note: k_ij and k_ji distinction should not matter here.. as i == j
+        emigration_propensity[k_ij] = dd_death_rate * n_i;
+        immigration_propensity[k_ij] = dd_birth_rate * n_j;
+    } else {
+        let m0 = migration_baseline;
+        // APPROACH: WEDGE
+        // m_(j i) • N_i
+        emigration_propensity[k_ij] =
+            (m0 * (n_i - (carrying_capacity[i] - 1.)).max(0.)) / carrying_capacity[i];
+        emigration_propensity[k_ij] *= n_i;
+        // m_(i j) • N_j
+        immigration_propensity[k_ij] =
+            (m0 * (n_j - (carrying_capacity[j] - 1.)).max(0.)) / carrying_capacity[j];
+        immigration_propensity[k_ij] *= n_j;
+        debug_assert!(
+            immigration_propensity[k_ij].is_finite(),
+            "{m0},{n_j},{carrying_capacity:?},{j}"
+        );
+    }
 }
 
-//TODO: this `f_migration_smooth` is not used anywhere
-
+#[allow(clippy::too_many_arguments)]
 #[inline(always)]
-fn f_migration_smooth(n: f64, migration_baseline: f64, cc: f64, mig: &mut f64) {
-    let log2: f64 = 1_f64.ln_1p();
-    *mig = ((n - cc).exp().ln_1p() * migration_baseline) / (cc * log2);
+fn f_migration_smooth(
+    i: usize,
+    j: usize,
+    k_ij: usize,
+    birth_baseline: &[f64],
+    death_baseline: &[f64],
+    carrying_capacity: &[f64],
+    n_i: f64,
+    n_j: f64,
+    migration_baseline: f64,
+    // output
+    immigration_propensity: &mut Box<[f64]>,
+    emigration_propensity: &mut Box<[f64]>,
+) {
+    if i == j {
+        // diagonals means birth/death
+        let g_rate_ratio = (birth_baseline[i] - death_baseline[i]) / (carrying_capacity[i]);
+
+        let dd_birth_rate = death_baseline[i] + g_rate_ratio * (carrying_capacity[i] - n_i).max(0.);
+        let dd_death_rate = death_baseline[i] + g_rate_ratio * (n_i - carrying_capacity[i]).max(0.);
+        // dbg!(dd_birth_rate, dd_death_rate, dd_birth_rate - dd_death_rate);
+        // note: k_ij and k_ji distinction should not matter here.. as i == j
+        emigration_propensity[k_ij] = dd_death_rate * n_i;
+        immigration_propensity[k_ij] = dd_birth_rate * n_j;
+        // debug_assert_eq!(k_ij, k_ij);
+    } else {
+        let m0 = migration_baseline;
+        // APPROACH: SMOOTH
+        // m_(j i) • N_i
+        emigration_propensity[k_ij] = (m0 * (n_i - carrying_capacity[i]).exp().ln_1p())
+            / ((1_f64).ln_1p() * carrying_capacity[i]);
+        emigration_propensity[k_ij] *= n_i;
+        // eprintln!("{}", &emigration_propensity);
+        // m_(i j) • N_j
+        immigration_propensity[k_ij] = (m0 * (n_j - carrying_capacity[j]).exp().ln_1p())
+            / ((1_f64).ln_1p() * carrying_capacity[j]);
+        immigration_propensity[k_ij] *= n_j;
+        debug_assert!(
+            immigration_propensity[k_ij].is_finite(),
+            "{m0},{n_j},{carrying_capacity:?},{j}"
+        );
+    }
 }
 
 /// Checks if all elements of `integer` are non-negative, thus returns a transmuted unsigned integer slice back.
@@ -908,7 +983,7 @@ mod tests {
             let t_max = 25.;
             let seed = 20240817;
 
-            let output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
+            let _output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
         });
     }
 
@@ -936,7 +1011,7 @@ mod tests {
             let t_max = 25.;
             let seed = 20240817;
 
-            let output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
+            let _output = wild_ssa.run_and_record_patch(t_max, repetitions, seed);
         });
     }
 
@@ -960,13 +1035,13 @@ mod tests {
         // can I update the same weight twice?
     }
 
-    #[test]
-    fn test_sim_bdm() {
-        let n0 = [2];
-        let birth_baseline = [4.];
-        let death_baseline = [1.];
-        let carrying_capacity = [4.];
-        let migration_baseline = 0.1;
-        let t_max = 10.;
-    }
+    // #[test]
+    // fn test_sim_bdm() {
+    //     let n0 = [2];
+    //     let birth_baseline = [4.];
+    //     let death_baseline = [1.];
+    //     let carrying_capacity = [4.];
+    //     let migration_baseline = 0.1;
+    //     let t_max = 10.;
+    // }
 }
