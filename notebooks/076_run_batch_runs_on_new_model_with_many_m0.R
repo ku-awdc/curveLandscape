@@ -13,12 +13,12 @@ all_landscapes$stat_binned_output <- vector("list", length = nrow(all_landscapes
 repetitions <- 50
 t_max <- 25
 delta_t <- 1 / 12
-# all_migration_baseline <- 1 / (8/12)
-all_migration_baseline <- 0
+all_migration_baseline <- 1 / ((1:25) / 12)
+# all_migration_baseline <- 0
 binned_time <- seq.default(from = 0, to = t_max, by = delta_t)
 
 fs::dir_create("figures")
-pdf("figures/074_plot_m0_zero_new_model.pdf")
+pdf("figures/076_plot_new_model_smooth_with_many_m0.pdf")
 for (id_m0 in seq_along(all_migration_baseline)) {
   migration_baseline <- all_migration_baseline[id_m0]
 
@@ -107,26 +107,26 @@ for (id_m0 in seq_along(all_migration_baseline)) {
     stat_wild_ssa_output
     all_landscapes$stat_binned_output[[id_landscape]] <- stat_wild_ssa_output
 
-    stat_wild_ssa_output %>%
-      glimpse() %>%
-      {
-        ggplot(.) +
-          geom_line(aes(time, mean)) +
-          geom_line(linetype = "dotted", aes(time, ci_lower)) +
-          geom_line(linetype = "dotdash", aes(time, ci_upper)) +
-          # geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
-          labs(x = "time [years]") +
-          labs(y = "Mean population count") +
-          geom_hline(
-            aes(yintercept = landscape$total_cc),
-            linetype = "dotted",
-            linewidth = 1.1
-          ) +
-          p_landscape_caption +
-          ggpubr::theme_pubclean(15) +
-          # theme_light(15) +
-          NULL
-      } -> p_binned_stat_ssa_output
+    # stat_wild_ssa_output %>%
+    #   glimpse() %>%
+    #   {
+    #     ggplot(.) +
+    #       geom_line(aes(time, mean)) +
+    #       geom_line(linetype = "dotted", aes(time, ci_lower)) +
+    #       geom_line(linetype = "dotdash", aes(time, ci_upper)) +
+    #       # geom_step(aes(alpha = count, color = repetition), show.legend = FALSE) +
+    #       labs(x = "time [years]") +
+    #       labs(y = "Mean population count") +
+    #       geom_hline(
+    #         aes(yintercept = landscape$total_cc),
+    #         linetype = "dotted",
+    #         linewidth = 1.1
+    #       ) +
+    #       p_landscape_caption +
+    #       ggpubr::theme_pubclean(15) +
+    #       # theme_light(15) +
+    #       NULL
+    #   } -> p_binned_stat_ssa_output
     # print(p_binned_stat_ssa_output)
 
     #' ## Full resolution
@@ -168,12 +168,12 @@ for (id_m0 in seq_along(all_migration_baseline)) {
   all_landscapes %>%
     mutate(
       landscape_type = fct_inorder(landscape_type),
-      set_patch_size_label =  fct(set_patch_size %>% str_c(" km²"))
+      set_patch_size_label = fct(set_patch_size %>% str_c(" km²"))
     ) %>%
     select(landscape_type:n_len, stat_binned_output, set_patch_size_label, -grid) %>%
     unnest(stat_binned_output) %>%
     identity() %>%
-    glimpse() %>% 
+    glimpse() %>%
     {
       ggplot(.) +
         aes(time, mean, group = str_c(landscape_type, set_patch_size_label)) +
@@ -207,12 +207,12 @@ for (id_m0 in seq_along(all_migration_baseline)) {
 
   print(p_plot_all_landscapes_together)
   write_rds(all_landscapes, glue(
-    ".cache/074_m0_is_0_all_landscapes.rds"
+    ".cache/076_new_model_all_landscapes_default_m0_smooth_{id_m0}.rds"
   ))
   # fs::dir_create("figures")
   ggsave(
     p_plot_all_landscapes_together,
-    filename = "figures/074_m0_is_0_all_landscapes.svg",
+    filename = glue("figures/076_new_model_all_landscapes_many_m0_smooth_{id_m0}.svg"),
     device = svglite::svglite,
     # scaling = 3,
     scale = 1.9
@@ -221,5 +221,5 @@ for (id_m0 in seq_along(all_migration_baseline)) {
   )
 }
 
-beepr::beep("ding")
+beepr::beep("complete")
 dev.off()

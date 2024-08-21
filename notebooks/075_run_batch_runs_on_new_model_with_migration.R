@@ -13,12 +13,12 @@ all_landscapes$stat_binned_output <- vector("list", length = nrow(all_landscapes
 repetitions <- 50
 t_max <- 25
 delta_t <- 1 / 12
-# all_migration_baseline <- 1 / (8/12)
-all_migration_baseline <- 0
+all_migration_baseline <- 1 / (8/12)
+# all_migration_baseline <- 0
 binned_time <- seq.default(from = 0, to = t_max, by = delta_t)
 
 fs::dir_create("figures")
-pdf("figures/074_plot_m0_zero_new_model.pdf")
+pdf("figures/075_plot_new_model_smooth_with_migration.pdf")
 for (id_m0 in seq_along(all_migration_baseline)) {
   migration_baseline <- all_migration_baseline[id_m0]
 
@@ -207,19 +207,19 @@ for (id_m0 in seq_along(all_migration_baseline)) {
 
   print(p_plot_all_landscapes_together)
   write_rds(all_landscapes, glue(
-    ".cache/074_m0_is_0_all_landscapes.rds"
+    ".cache/075_new_model_all_landscapes_default_m0_smooth.rds"
   ))
   # fs::dir_create("figures")
   ggsave(
     p_plot_all_landscapes_together,
-    filename = "figures/074_m0_is_0_all_landscapes.svg",
+    filename = "figures/075_new_model_all_landscapes_default_m0_smooth.svg",
     device = svglite::svglite,
     # scaling = 3,
-    scale = 1.9
+    # scale = 1.9
     # width = 2*4.27,
     # height = 2.5
   )
 }
 
-beepr::beep("ding")
+beepr::beep("complete")
 dev.off()

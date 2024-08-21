@@ -487,7 +487,6 @@ impl WildSSA {
             let n_i = n[i] as f64;
             let n_j = n[j] as f64;
 
-            // }
             f_migration_smooth(
                 i,
                 j,
