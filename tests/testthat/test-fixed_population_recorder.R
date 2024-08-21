@@ -9,6 +9,7 @@ test_that("equal to R's approx", {
     carrying_capacity = c(10, 20, 3, 2),
     migration_intercept = 0,
     migration_baseline = 1 / (8 / 12)
+    # migration_baseline = 0
   )
 
   fixed_time <- seq.default(0, 5, by = 0.1)
@@ -19,7 +20,7 @@ test_that("equal to R's approx", {
       repetitions = 10,
       seed = 20240822
     )
-  
+
   ssa_outputs <-
     wild_ssa_model$run_and_record_population_par(
       # fixed_time_points = fixed_time,
@@ -27,23 +28,22 @@ test_that("equal to R's approx", {
       repetitions = 10,
       seed = 20240822
     )
-  
-  ssa_binned_outputs_true <- ssa_outputs %>% 
+
+  ssa_binned_outputs_true <- ssa_outputs %>%
     map(\(output) {
       approx(output$time, output$count, fixed_time, method = "constant")$y
     })
- 
+
   ssa_outputs_binned[[1]]$count
   ssa_binned_outputs_true[[1]]
-  
+
   map2_lgl(
-    ssa_outputs_binned, 
+    ssa_outputs_binned,
     ssa_binned_outputs_true,
     \(rust_version, r_version) {
       all(rust_version$count == r_version)
     }
-  )
-
-  # MISSING
-  expect_false(true)
+  ) %>%
+    all() %>%
+    expect_true()
 })
