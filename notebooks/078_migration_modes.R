@@ -98,9 +98,8 @@ all_result_df %>%
       )) +
       labs(color = NULL) +
       facet_wrap(~migration_scheme, ncol = 1, strip.position = "right") +
-      ggpubr::theme_pubclean(15) +      
+      ggpubr::theme_pubclean(15) +
       ggpubr::labs_pubr() +
-
       NULL
   }
 
@@ -173,8 +172,10 @@ all_patch_result_df %>%
       geom_hline(data = . %>% mutate(carrying_capacity = carrying_capacity[as.integer(id_patch)]), aes(
         yintercept = carrying_capacity,
         color = "Carrying Capacity",
-      ), linetype = "dashed") +
+      ), linetype = "dashed", linewidth = 1.1) +
       labs(color = NULL) +
+      labs(linetype = NULL) +
+      guides(color = guide_legend(override.aes = list(linewidth = 1.5), linetype = NULL)) +
       facet_wrap(~migration_scheme, ncol = 1, strip.position = "right") +
       # facet_wrap(id_patch~migration_scheme, strip.position = "right") +
       ggpubr::theme_pubclean() +
