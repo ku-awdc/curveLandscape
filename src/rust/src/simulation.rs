@@ -372,6 +372,7 @@ struct WildSSAConfiguration {
     carrying_capacity: Box<[f64]>,
     migration_intercept: f64,
     migration_baseline: f64,
+    migration_scheme: MigrationScheme,
 }
 
 #[derive(Debug, Clone)]
@@ -417,7 +418,6 @@ struct WildSSA {
     configuration: WildSSAConfiguration,
 }
 
-#[extendr]
 impl WildSSA {
     /// Construct a new model object. In order to run this, the `run_*` methods must be used.
     pub fn new(
@@ -427,7 +427,7 @@ impl WildSSA {
         carrying_capacity: &[f64],
         migration_intercept: f64,
         migration_baseline: f64,
-        // missing the softening index...
+        migration_scheme: MigrationScheme,
     ) -> Self {
         assert!(
             migration_intercept.abs() <= 0.00001,
@@ -525,17 +525,72 @@ impl WildSSA {
                 carrying_capacity,
                 migration_intercept,
                 migration_baseline,
+                migration_scheme,
             },
         }
     }
+}
+#[extendr]
+impl WildSSA {
+    pub fn new_static(
+        n0: &[i32],
+        birth_baseline: &[f64],
+        death_baseline: &[f64],
+        carrying_capacity: &[f64],
+        migration_intercept: f64,
+        migration_baseline: f64,
+    ) -> Self {
+        let migration_scheme = MigrationScheme::Static;
+        Self::new(
+            n0,
+            birth_baseline,
+            death_baseline,
+            carrying_capacity,
+            migration_intercept,
+            migration_baseline,
+            migration_scheme,
+        )
+    }
 
-    // fn generic_run_until(
-    //     mut self,
-    //     t_max: f64,
-    //     f_birth_rate: fn(f64, f64, f64, f64, &mut f64, &mut f64, &mut f64),
-    //     f_migration_rate: fn(f64, f64, f64, &mut f64),
-    //     recorder: &mut impl Recorder,
-    // ) {}
+    pub fn new_wedge(
+        n0: &[i32],
+        birth_baseline: &[f64],
+        death_baseline: &[f64],
+        carrying_capacity: &[f64],
+        migration_intercept: f64,
+        migration_baseline: f64,
+    ) -> Self {
+        let migration_scheme = MigrationScheme::Wedge;
+        Self::new(
+            n0,
+            birth_baseline,
+            death_baseline,
+            carrying_capacity,
+            migration_intercept,
+            migration_baseline,
+            migration_scheme,
+        )
+    }
+
+    pub fn new_smooth(
+        n0: &[i32],
+        birth_baseline: &[f64],
+        death_baseline: &[f64],
+        carrying_capacity: &[f64],
+        migration_intercept: f64,
+        migration_baseline: f64,
+    ) -> Self {
+        let migration_scheme = MigrationScheme::Smooth;
+        Self::new(
+            n0,
+            birth_baseline,
+            death_baseline,
+            carrying_capacity,
+            migration_intercept,
+            migration_baseline,
+            migration_scheme,
+        )
+    }
 
     /// Runs the model for `repetitions`, on the seed `seed`, and records every change on every patch throughout.
     pub fn run_and_record_patch(&self, t_max: f64, repetitions: usize, seed: u64) -> List {
@@ -678,7 +733,13 @@ impl WildSSA {
             carrying_capacity,
             migration_intercept: _,
             migration_baseline,
+            migration_scheme,
         } = self.configuration;
+        let f_migration = match migration_scheme {
+            MigrationScheme::Static => f_migration_static,
+            MigrationScheme::Wedge => f_migration_wedge,
+            MigrationScheme::Smooth => f_migration_smooth,
+        };
         let WildSSAInternalState {
             ref mut n,
             mut current_time,
@@ -792,8 +853,7 @@ impl WildSSA {
                 // remove the old values...
                 total_emigration_propensity -= emigration_propensity[k_ij];
                 total_immigration_propensity -= immigration_propensity[k_ij];
-
-                f_migration_smooth(
+                f_migration(
                     i,
                     j,
                     k_ij,
@@ -986,10 +1046,13 @@ trait Migration {
 /// This represents density-dependent, but state static migration:
 /// m_(i j) := m0 / K_j
 ///
+#[derive(Debug)]
 struct StaticMigration;
 /// This represent density-dependent, and state-dependent migration, however with a wedge definition.
+#[derive(Debug)]
 struct WedgeMigration;
 /// This represent density-dependent, and state-dependent migration, however with a smoothed definition.
+#[derive(Debug)]
 struct SmoothMigration;
 macro_rules! impl_migration {
     ($struct_name:ty, $impl_fn:ident) => {
@@ -1031,6 +1094,33 @@ impl_migration!(StaticMigration, f_migration_static);
 impl_migration!(WedgeMigration, f_migration_wedge);
 impl_migration!(SmoothMigration, f_migration_smooth);
 
+#[derive(Debug, Clone)]
+enum MigrationScheme {
+    Static,
+    Wedge,
+    Smooth,
+}
+
+impl From<MigrationScheme> for Robj {
+    fn from(value: MigrationScheme) -> Self {
+        format!("{value:?}").into()
+    }
+}
+
+// impl TryFrom<Robj> for MigrationScheme {
+//     type Error = extendr_api::Error;
+
+//     fn try_from(value: Robj) -> std::result::Result<Self, Self::Error> {
+//         let value = value
+//             .as_str()
+//             // no appropriate error for ExpectedScalarString...
+//             .ok_or_else(|| extendr_api::Error::ExpectedScalar(().into()))?;
+//         Ok(
+//             todo!()
+//         )
+//     }
+// }
+
 /// Checks if all elements of `integer` are non-negative, thus returns a transmuted unsigned integer slice back.
 pub(crate) fn as_u32(integer: &[i32]) -> Option<&[u32]> {
     let any_negative = integer.iter().any(|x| x.is_negative());
@@ -1061,7 +1151,7 @@ mod tests {
         let carrying_capacity = &[4.];
         let migration_baseline = 4.;
         let migration_intercept = 0.;
-
+        let migration_scheme = MigrationScheme::Static;
         #[allow(unused_mut)]
         let mut wild_ssa = WildSSA::new(
             n0,
@@ -1070,6 +1160,7 @@ mod tests {
             carrying_capacity,
             migration_intercept,
             migration_baseline,
+            migration_scheme,
         );
 
         dbg!(&wild_ssa);
@@ -1083,6 +1174,7 @@ mod tests {
             let carrying_capacity = &[4., 4.];
             let migration_baseline = 1. / (8. / 12.);
             let migration_intercept = 0.;
+            let migration_scheme = MigrationScheme::Static;
 
             #[allow(unused_mut)]
             let mut wild_ssa = WildSSA::new(
@@ -1092,6 +1184,7 @@ mod tests {
                 carrying_capacity,
                 migration_intercept,
                 migration_baseline,
+                migration_scheme,
             );
             let repetitions = 100;
             // let t_max = 1.;
@@ -1111,7 +1204,7 @@ mod tests {
             let carrying_capacity = &[4., 4., 5.];
             let migration_baseline = 1. / (8. / 12.);
             let migration_intercept = 0.;
-
+            let migration_scheme = MigrationScheme::Static;
             #[allow(unused_mut)]
             let mut wild_ssa = WildSSA::new(
                 n0,
@@ -1120,6 +1213,7 @@ mod tests {
                 carrying_capacity,
                 migration_intercept,
                 migration_baseline,
+                migration_scheme,
             );
             let repetitions = 100;
             // let t_max = 1.;
