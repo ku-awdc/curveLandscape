@@ -964,6 +964,74 @@ fn f_migration_smooth(
     }
 }
 
+// note: Trying the trait formulation of the above...
+
+trait Migration {
+    #[allow(clippy::too_many_arguments)]
+    fn update_migration_propensity(
+        i: usize,
+        j: usize,
+        k_ij: usize,
+        birth_baseline: &[f64],
+        death_baseline: &[f64],
+        carrying_capacity: &[f64],
+        n_i: f64,
+        n_j: f64,
+        migration_baseline: f64,
+        // output
+        immigration_propensity: &mut Box<[f64]>,
+        emigration_propensity: &mut Box<[f64]>,
+    );
+}
+
+/// This represents density-dependent, but state static migration:
+/// m_(i j) := m0 / K_j
+///
+struct StaticMigration;
+/// This represent density-dependent, and state-dependent migration, however with a wedge definition.
+struct WedgeMigration;
+/// This represent density-dependent, and state-dependent migration, however with a smoothed definition.
+struct SmoothMigration;
+macro_rules! impl_migration {
+    ($struct_name:ty, $impl_fn:ident) => {
+        impl Migration for $struct_name {
+            #[inline(always)]
+            fn update_migration_propensity(
+                i: usize,
+                j: usize,
+                k_ij: usize,
+                birth_baseline: &[f64],
+                death_baseline: &[f64],
+                carrying_capacity: &[f64],
+                n_i: f64,
+                n_j: f64,
+                migration_baseline: f64,
+                // output
+                immigration_propensity: &mut Box<[f64]>,
+                emigration_propensity: &mut Box<[f64]>,
+            ) {
+                $impl_fn(
+                    i,
+                    j,
+                    k_ij,
+                    birth_baseline,
+                    death_baseline,
+                    carrying_capacity,
+                    n_i,
+                    n_j,
+                    migration_baseline,
+                    immigration_propensity,
+                    emigration_propensity,
+                )
+            }
+        }
+    };
+}
+// note: to avoid unnecessary boilerplate. Expand, and fill out manually if things get more complicated.
+impl_migration!(StaticMigration, f_migration_static);
+impl_migration!(WedgeMigration, f_migration_wedge);
+impl_migration!(SmoothMigration, f_migration_smooth);
+
 /// Checks if all elements of `integer` are non-negative, thus returns a transmuted unsigned integer slice back.
 pub(crate) fn as_u32(integer: &[i32]) -> Option<&[u32]> {
     let any_negative = integer.iter().any(|x| x.is_negative());
