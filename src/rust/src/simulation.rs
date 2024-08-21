@@ -529,7 +529,179 @@ impl WildSSA {
             },
         }
     }
+
+    /// This function consumes a model object, and in return runs the simulation from
+    /// current time until `t_max`. There are multiple recorders available, with various
+    /// advantages and granularity of resolution.
+    #[inline(always)]
+    fn run_until(mut self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
+        assert!(self.current_time <= t_max);
+
+        let WildSSAConfiguration {
+            n0: _,
+            n_len,
+            birth_baseline,
+            death_baseline,
+            carrying_capacity,
+            migration_intercept: _,
+            migration_baseline,
+            migration_scheme,
+        } = self.configuration;
+        let f_migration = match migration_scheme {
+            MigrationScheme::Static => f_migration_static,
+            MigrationScheme::Wedge => f_migration_wedge,
+            MigrationScheme::Smooth => f_migration_smooth,
+        };
+        let WildSSAInternalState {
+            ref mut n,
+            mut current_time,
+            ref mut emigration_propensity,
+            ref mut immigration_propensity,
+            mut total_emigration_propensity,
+            mut total_immigration_propensity,
+            mut total_propensity,
+        } = self.internal_state;
+        // record initial state
+        // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
+        recorder.add_initial_state(current_time, n.as_ref());
+        'simulation_loop: loop {
+            let delta_t: f64 = rng.sample(rand::distributions::Open01);
+            let delta_t = -delta_t.ln() / total_propensity;
+            assert!(delta_t.is_finite());
+            current_time += delta_t;
+
+            if current_time >= t_max {
+                break;
+            }
+
+            // did emigration (0) or immigration occur?
+            let is_emigration = rng.gen_bool(
+                total_emigration_propensity
+                    / (total_immigration_propensity + total_emigration_propensity),
+            );
+            let (dest_patch, src_patch) = if is_emigration {
+                // (j i)
+                let k_event =
+                    rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
+                // note: k => (i,j): (k % n, k / n)
+                (k_event / n_len, k_event % n_len)
+            } else {
+                // (i j)
+                let k_event =
+                    rng.sample(WeightedIndex::new(immigration_propensity.as_ref()).unwrap());
+                (k_event % n_len, k_event / n_len)
+            };
+
+            match (is_emigration, dest_patch == src_patch) {
+                // birth
+                (false, true) => {
+                    // src_patch === dest_patch
+                    n[src_patch] += 1;
+                    recorder.record_birth(current_time, src_patch, n[src_patch]);
+                }
+                // death
+                (true, true) => {
+                    // src_patch === dest_patch
+                    n[src_patch] -= 1;
+                    recorder.record_death(current_time, src_patch, n[src_patch]);
+                }
+                // emigration
+                (true, false) => {
+                    debug_assert_ne!(
+                        n[src_patch], 0,
+                        "({src_patch}, {dest_patch}), => {n:#?}\n{immigration_propensity:#?}\n{emigration_propensity:#?}"
+                    );
+                    n[src_patch] -= 1;
+                    n[dest_patch] += 1;
+                    recorder.record_migration(
+                        current_time,
+                        src_patch,
+                        dest_patch,
+                        n[src_patch],
+                        n[dest_patch],
+                    )
+                }
+                // note: duplicate of the branch before, but helps with readability.
+                // immigration
+                (false, false) => {
+                    debug_assert_ne!(n[src_patch], 0, "({src_patch}, {dest_patch}), => {n:#?}\n{immigration_propensity:#?}\n{emigration_propensity:#?}");
+                    n[src_patch] -= 1;
+                    n[dest_patch] += 1;
+                    recorder.record_migration(
+                        current_time,
+                        src_patch,
+                        dest_patch,
+                        n[src_patch],
+                        n[dest_patch],
+                    )
+                }
+            }
+            // dbg!(is_emigration);
+            // dbg!(src_patch, dest_patch, &n);
+
+            // update the columns, as there are new `N`s and thus their value has changed.
+            // let mut changed_patches = Vec::with_capacity(2);
+            // if dest_patch != src_patch {
+            //     changed_patches.push(src_patch); // or `dest_patch`
+            // } else {
+            //     changed_patches.push(dest_patch);
+            //     changed_patches.push(src_patch);
+            // };
+            // let changed_patches = [src_patch, dest_patch];
+            // alternative is `let changed_patches = [src_patch, dest_patch];`
+            // and accept double updating the cases of (birth|death).
+            // dbg!(&changed_patches);
+            let criss_cross = (0..n_len)
+                .map(|x| (x, src_patch))
+                .chain((0..n_len).map(|x| (src_patch, x)))
+                .chain((0..n_len).map(|x| (x, dest_patch)))
+                .chain((0..n_len).map(|x| (dest_patch, x)));
+            for (i, j) in criss_cross {
+                let k_ij = i + j * n_len;
+                // these are now the _new_ values..
+                let n_i = n[i] as f64;
+                let n_j = n[j] as f64;
+
+                // remove the old values...
+                total_emigration_propensity -= emigration_propensity[k_ij];
+                total_immigration_propensity -= immigration_propensity[k_ij];
+                f_migration(
+                    i,
+                    j,
+                    k_ij,
+                    &birth_baseline,
+                    &death_baseline,
+                    &carrying_capacity,
+                    n_i,
+                    n_j,
+                    migration_baseline,
+                    immigration_propensity,
+                    emigration_propensity,
+                );
+                total_immigration_propensity += immigration_propensity[k_ij];
+                total_emigration_propensity += emigration_propensity[k_ij];
+                debug_assert!(
+                    !total_immigration_propensity.is_nan(),
+                    "{immigration_propensity:#?}"
+                );
+                debug_assert!(!total_emigration_propensity.is_nan());
+            }
+            // update total propensity
+            total_propensity = total_emigration_propensity + total_immigration_propensity;
+
+            // Terminate due to extinction
+            if n.iter().all(|&x| x == 0) {
+                break 'simulation_loop;
+            }
+        }
+
+        // FIXME: check if the last simulated event was exactly at `t_max`
+
+        // add an event at `t_max` that is just the repeat of last state
+        recorder.add_final_state(t_max, n.as_ref());
+    }
 }
+
 #[extendr]
 impl WildSSA {
     pub fn new_static(
@@ -714,179 +886,6 @@ impl WildSSA {
 
     fn internal_debug_display(&self) -> String {
         format!("{self:#?}")
-    }
-}
-
-impl WildSSA {
-    /// This function consumes a model object, and in return runs the simulation from
-    /// current time until `t_max`. There are multiple recorders available, with various
-    /// advantages and granularity of resolution.
-    #[inline(always)]
-    fn run_until(mut self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
-        assert!(self.current_time <= t_max);
-
-        let WildSSAConfiguration {
-            n0: _,
-            n_len,
-            birth_baseline,
-            death_baseline,
-            carrying_capacity,
-            migration_intercept: _,
-            migration_baseline,
-            migration_scheme,
-        } = self.configuration;
-        let f_migration = match migration_scheme {
-            MigrationScheme::Static => f_migration_static,
-            MigrationScheme::Wedge => f_migration_wedge,
-            MigrationScheme::Smooth => f_migration_smooth,
-        };
-        let WildSSAInternalState {
-            ref mut n,
-            mut current_time,
-            ref mut emigration_propensity,
-            ref mut immigration_propensity,
-            mut total_emigration_propensity,
-            mut total_immigration_propensity,
-            mut total_propensity,
-        } = self.internal_state;
-        // record initial state
-        // FIXME: this will add another "record" if it is a re-run of an already half run sequence.
-        recorder.add_initial_state(current_time, n.as_ref());
-        'simulation_loop: loop {
-            let delta_t: f64 = rng.sample(rand::distributions::Open01);
-            let delta_t = -delta_t.ln() / total_propensity;
-            assert!(delta_t.is_finite());
-            current_time += delta_t;
-
-            if current_time >= t_max {
-                break;
-            }
-
-            // did emigration (0) or immigration occur?
-            let is_emigration = rng.gen_bool(
-                total_emigration_propensity
-                    / (total_immigration_propensity + total_emigration_propensity),
-            );
-            let (dest_patch, src_patch) = if is_emigration {
-                // (j i)
-                let k_event =
-                    rng.sample(WeightedIndex::new(emigration_propensity.as_ref()).unwrap());
-                // note: k => (i,j): (k % n, k / n)
-                (k_event / n_len, k_event % n_len)
-            } else {
-                // (i j)
-                let k_event =
-                    rng.sample(WeightedIndex::new(immigration_propensity.as_ref()).unwrap());
-                (k_event % n_len, k_event / n_len)
-            };
-
-            match (is_emigration, dest_patch == src_patch) {
-                // birth
-                (false, true) => {
-                    // src_patch === dest_patch
-                    n[src_patch] += 1;
-                    recorder.record_birth(current_time, src_patch, n[src_patch]);
-                }
-                // death
-                (true, true) => {
-                    // src_patch === dest_patch
-                    n[src_patch] -= 1;
-                    recorder.record_death(current_time, src_patch, n[src_patch]);
-                }
-                // emigration
-                (true, false) => {
-                    debug_assert_ne!(
-                        n[src_patch], 0,
-                        "({src_patch}, {dest_patch}), => {n:#?}\n{immigration_propensity:#?}\n{emigration_propensity:#?}"
-                    );
-                    n[src_patch] -= 1;
-                    n[dest_patch] += 1;
-                    recorder.record_migration(
-                        current_time,
-                        src_patch,
-                        dest_patch,
-                        n[src_patch],
-                        n[dest_patch],
-                    )
-                }
-                // note: duplicate of the branch before, but helps with readability.
-                // immigration
-                (false, false) => {
-                    debug_assert_ne!(n[src_patch], 0, "({src_patch}, {dest_patch}), => {n:#?}\n{immigration_propensity:#?}\n{emigration_propensity:#?}");
-                    n[src_patch] -= 1;
-                    n[dest_patch] += 1;
-                    recorder.record_migration(
-                        current_time,
-                        src_patch,
-                        dest_patch,
-                        n[src_patch],
-                        n[dest_patch],
-                    )
-                }
-            }
-            // dbg!(is_emigration);
-            // dbg!(src_patch, dest_patch, &n);
-
-            // update the columns, as there are new `N`s and thus their value has changed.
-            // let mut changed_patches = Vec::with_capacity(2);
-            // if dest_patch != src_patch {
-            //     changed_patches.push(src_patch); // or `dest_patch`
-            // } else {
-            //     changed_patches.push(dest_patch);
-            //     changed_patches.push(src_patch);
-            // };
-            // let changed_patches = [src_patch, dest_patch];
-            // alternative is `let changed_patches = [src_patch, dest_patch];`
-            // and accept double updating the cases of (birth|death).
-            // dbg!(&changed_patches);
-            let criss_cross = (0..n_len)
-                .map(|x| (x, src_patch))
-                .chain((0..n_len).map(|x| (src_patch, x)))
-                .chain((0..n_len).map(|x| (x, dest_patch)))
-                .chain((0..n_len).map(|x| (dest_patch, x)));
-            for (i, j) in criss_cross {
-                let k_ij = i + j * n_len;
-                // these are now the _new_ values..
-                let n_i = n[i] as f64;
-                let n_j = n[j] as f64;
-
-                // remove the old values...
-                total_emigration_propensity -= emigration_propensity[k_ij];
-                total_immigration_propensity -= immigration_propensity[k_ij];
-                f_migration(
-                    i,
-                    j,
-                    k_ij,
-                    &birth_baseline,
-                    &death_baseline,
-                    &carrying_capacity,
-                    n_i,
-                    n_j,
-                    migration_baseline,
-                    immigration_propensity,
-                    emigration_propensity,
-                );
-                total_immigration_propensity += immigration_propensity[k_ij];
-                total_emigration_propensity += emigration_propensity[k_ij];
-                debug_assert!(
-                    !total_immigration_propensity.is_nan(),
-                    "{immigration_propensity:#?}"
-                );
-                debug_assert!(!total_emigration_propensity.is_nan());
-            }
-            // update total propensity
-            total_propensity = total_emigration_propensity + total_immigration_propensity;
-
-            // Terminate due to extinction
-            if n.iter().all(|&x| x == 0) {
-                break 'simulation_loop;
-            }
-        }
-
-        // FIXME: check if the last simulated event was exactly at `t_max`
-
-        // add an event at `t_max` that is just the repeat of last state
-        recorder.add_final_state(t_max, n.as_ref());
     }
 }
 
