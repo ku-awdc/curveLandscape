@@ -363,6 +363,176 @@ impl Recorder for PopulationFixedRecord {
     }
 }
 
+/// Records all patches at fixed timepoints.
+///
+/// Similar to `approx(method = "constant", f = 0)` in R.
+///
+#[derive(Debug, IntoRobj)]
+pub(crate) struct PatchFixedRecord {
+    pub(crate) repetition: usize,
+    /// Fixed time points that, where the total population is recorded at.
+    pub(crate) time: Vec<f64>,
+    pub(crate) id_patch: Vec<usize>,
+    pub(crate) count: Vec<u32>,
+
+    // internal fields
+    current_time: f64,
+    // state: must be the same size throughout...
+    current_count: Vec<u32>,
+    // this is like an iterator going through `time`,
+    // and it is the current `time` and `count` entry we want to fill in.
+    current_time_index: usize,
+}
+
+impl PatchFixedRecord {
+    pub fn new(repetition: usize, n_len: usize, fixed_time_points: &[f64]) -> Self {
+        // TODO: check that it is non-decreasing time points
+        assert!(!fixed_time_points.is_empty());
+
+        // these are the fixed time points
+        let time = Vec::from(fixed_time_points);
+        let count = Vec::with_capacity(n_len * fixed_time_points.len());
+        let id_patch = Vec::with_capacity(n_len * fixed_time_points.len());
+
+        let current_time = time[0]; // invalid state, must be rectified before using in algorithm
+        let current_count = vec![0; n_len]; // invalid state, must be rectified before using in algorithm
+        let current_time_index = 0; // good! we need to record the first time point.
+        Self {
+            repetition,
+            time,
+            id_patch,
+            count,
+            current_time,
+            current_count,
+            current_time_index,
+        }
+    }
+}
+impl Recorder for PatchFixedRecord {
+    fn push(&mut self, _time: f64, _patch_id: usize, _n: u32) {
+        panic!("Doesn't make sense here...")
+    }
+
+    fn add_initial_state(&mut self, time: f64, n: &[u32]) {
+        // assert!(
+        //     (self.current_time - time).abs() <= 0.00001,
+        //     "initial requested time must match the initial simulated time"
+        // );
+        assert!(
+            self.time[self.current_time_index] >= time,
+            "we didn't skip anything.."
+        );
+        // let total_n0 = n.iter().sum();
+        assert!(self.current_count.is_empty());
+        self.current_count.extend_from_slice(n);
+        self.current_time = time;
+        // is this initial time of interest?
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                // self.count.push(self.current_count);
+                self.count.extend_from_slice(n);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
+        }
+    }
+
+    fn record_birth(&mut self, time: f64, _patch_id: usize, _n_patch: u32) {
+        self.current_time = time;
+        // is this initial time of interest?
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.extend(&self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
+        }
+        self.current_count
+            .iter_mut()
+            .for_each(|current_patch_count| {
+                *current_patch_count += 1;
+            });
+    }
+
+    fn record_death(&mut self, time: f64, _patch_id: usize, _n_patch: u32) {
+        self.current_time = time;
+        // is this initial time of interest?
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.extend(&self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
+        }
+        self.current_count
+            .iter_mut()
+            .for_each(|current_patch_count| {
+                *current_patch_count -= 1;
+            });
+    }
+
+    fn record_migration(
+        &mut self,
+        time: f64,
+        _source_patch_id: usize,
+        _target_patch_id: usize,
+        _source_n: u32,
+        _target_n: u32,
+    ) {
+        self.current_time = time;
+        // the population count doesn't change with a migration event,
+        // but we might have crossed the time points that we are interested in
+        loop {
+            if self.time[self.current_time_index] <= time {
+                // we crossed the time point we are interested in
+                self.count.extend(&self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.time[self.current_time_index] > time {
+                break;
+            }
+        }
+    }
+
+    fn add_final_state(&mut self, t_max: f64, n: &[u32]) {
+        // TODO: what is it that needs to be done here anyways?
+        self.current_time = t_max;
+        // self.current_count; // unchanged
+        loop {
+            if self.time[self.current_time_index] <= t_max {
+                // we crossed the time point we are interested in
+                self.count.extend(&self.current_count);
+                self.current_time_index += 1;
+            }
+            if self.current_time_index >= self.time.len() {
+                break;
+            }
+            if self.time[self.current_time_index] > t_max {
+                break;
+            }
+        }
+        // debug assert?
+        assert!(t_max >= *self.time.last().unwrap());
+        // sanity check: did we record everything we set out to do?
+        // but also ensures the output is uniform.
+        // dbg!(&self);
+        assert_eq!(
+            self.count.len(),
+            n.len() * self.time.len(),
+            "not all fixed time points were recorded."
+        );
+    }
+}
+
 #[derive(Debug, Clone)]
 struct WildSSAConfiguration {
     n0: Box<[u32]>,
