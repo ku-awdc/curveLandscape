@@ -53,5 +53,17 @@ WildSSA$internal_debug_display <- function() .Call(wrap__WildSSA__internal_debug
 #' @export
 `[[.WildSSA` <- `$.WildSSA`
 
+BirthDeathMix <- new.env(parent = emptyenv())
+
+BirthDeathMix$new <- function() .Call(wrap__BirthDeathMix__new)
+
+BirthDeathMix$run <- function() invisible(.Call(wrap__BirthDeathMix__run, self))
+
+#' @export
+`$.BirthDeathMix` <- function (self, name) { func <- BirthDeathMix[[name]]; environment(func) <- environment(); func }
+
+#' @export
+`[[.BirthDeathMix` <- `$.BirthDeathMix`
+
 
 # nolint end
