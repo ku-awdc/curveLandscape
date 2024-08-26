@@ -55,9 +55,9 @@ WildSSA$internal_debug_display <- function() .Call(wrap__WildSSA__internal_debug
 
 BirthDeathMix <- new.env(parent = emptyenv())
 
-BirthDeathMix$new <- function() .Call(wrap__BirthDeathMix__new)
+BirthDeathMix$new <- function(n0, birth_baseline, death_baseline, carrying_capacity, alpha_mix) .Call(wrap__BirthDeathMix__new, n0, birth_baseline, death_baseline, carrying_capacity, alpha_mix)
 
-BirthDeathMix$run <- function() invisible(.Call(wrap__BirthDeathMix__run, self))
+BirthDeathMix$run <- function(t_max, replicates, seed) .Call(wrap__BirthDeathMix__run, self, t_max, replicates, seed)
 
 #' @export
 `$.BirthDeathMix` <- function (self, name) { func <- BirthDeathMix[[name]]; environment(func) <- environment(); func }
