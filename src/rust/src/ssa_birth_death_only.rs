@@ -58,8 +58,10 @@ impl BirthDeathMix {
             alpha_mix,
         }
     }
+
     fn run_internal(&self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
         let mut current_time = 0.;
+        let f_update_scheme = update_birth_death_rate_paper2p;
 
         let Self {
             n0: N,
@@ -69,17 +71,19 @@ impl BirthDeathMix {
             alpha_mix: alpha,
         } = self.clone();
 
-        // birth = pmax(0, birth_baseline - ((birth_baseline - death_baseline) * alpha * N) / K),
-        // death = death_baseline + ((birth_baseline - death_baseline) * (1 - alpha) * N) / K,
-        // death = death + pmax(0, (((birth_baseline - death_baseline) * alpha * N) / K)  - birth_baseline),
         let mut N = N as _;
         let mut N_double = N as f64;
-        let mut signed_birth_rate =
-            birth_baseline - ((birth_baseline - death_baseline) * alpha * N_double) / K;
-        let mut birth_rate = signed_birth_rate.max(0.);
-        let death_rate =
-            death_baseline + ((birth_baseline - death_baseline) * (1. - alpha) * N_double) / K;
-        let mut death_rate = death_rate + (-signed_birth_rate).max(0.);
+        let mut birth_rate = 0.;
+        let mut death_rate = 0.;
+        f_update_scheme(
+            birth_baseline,
+            death_baseline,
+            alpha,
+            N_double,
+            K,
+            &mut birth_rate,
+            &mut death_rate,
+        );
         let mut total_propensity = (birth_rate + death_rate) * N_double;
 
         recorder.record_initial(N);
@@ -105,13 +109,16 @@ impl BirthDeathMix {
                 recorder.record_death(N)
             }
             // update things...
-
-            signed_birth_rate =
-                birth_baseline - ((birth_baseline - death_baseline) * alpha * N_double) / K;
-            birth_rate = signed_birth_rate.max(0.);
-            death_rate =
-                death_baseline + ((birth_baseline - death_baseline) * (1. - alpha) * N_double) / K;
-            death_rate += (-signed_birth_rate).max(0.);
+            f_update_scheme(
+                // &mut signed_birth_rate,
+                birth_baseline,
+                death_baseline,
+                alpha,
+                N_double,
+                K,
+                &mut birth_rate,
+                &mut death_rate,
+            );
             total_propensity = (birth_rate + death_rate) * N_double;
 
             // extinction?
@@ -122,6 +129,42 @@ impl BirthDeathMix {
 
         recorder.record_final(N);
     }
+}
+
+#[inline(always)]
+fn update_birth_death_rate(
+    birth_baseline: f64,
+    death_baseline: f64,
+    alpha: f64,
+    N_double: f64,
+    K: f64,
+    birth_rate: &mut f64,
+    death_rate: &mut f64,
+) {
+    // birth = pmax(0, birth_baseline - ((birth_baseline - death_baseline) * alpha * N) / K),
+    // death = death_baseline + ((birth_baseline - death_baseline) * (1 - alpha) * N) / K,
+    // death = death + pmax(0, (((birth_baseline - death_baseline) * alpha * N) / K)  - birth_baseline),
+    let signed_birth_rate =
+        birth_baseline - ((birth_baseline - death_baseline) * alpha * N_double) / K;
+    *birth_rate = signed_birth_rate.max(0.);
+    *death_rate =
+        death_baseline + ((birth_baseline - death_baseline) * (1. - alpha) * N_double) / K;
+    *death_rate += (-signed_birth_rate).max(0.);
+}
+
+#[inline(always)]
+fn update_birth_death_rate_paper2p(
+    birth_baseline: f64,
+    death_baseline: f64,
+    _alpha: f64,
+    N_double: f64,
+    K: f64,
+    birth_rate: &mut f64,
+    death_rate: &mut f64,
+) {
+    let g_rate_ratio = (birth_baseline - death_baseline) / K;
+    *birth_rate = death_baseline + g_rate_ratio * (K - N_double).max(0.);
+    *death_rate = death_baseline + g_rate_ratio * (N_double - K).max(0.);
 }
 
 #[derive(IntoRobj)]
