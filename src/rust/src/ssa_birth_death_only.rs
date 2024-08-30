@@ -61,7 +61,8 @@ impl BirthDeathMix {
 
     fn run_internal(&self, t_max: f64, rng: &mut impl rand::Rng, recorder: &mut impl Recorder) {
         let mut current_time = 0.;
-        let f_update_scheme = update_birth_death_rate_paper2p;
+        // let f_update_scheme = update_birth_death_rate_paper2p;
+        let f_update_scheme = update_birth_death_rate;
 
         let Self {
             n0: N,
