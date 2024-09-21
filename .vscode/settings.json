@@ -1,4 +1,6 @@
 {
+"terminal.integrated.scrollback": 1000000,
+    "rust-analyzer.check.command": "clippy",
     "editor.tokenColorCustomizations": {
         "[Night Owl Light (No Italics)]": {
             "comments": "#b58900",
