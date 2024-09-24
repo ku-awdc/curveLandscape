@@ -8,6 +8,7 @@ use extendr_api::prelude::*;
 mod linspace;
 mod logspace;
 mod simulation;
+mod ssa_birth_death_only;
 // mod ssa_source_only_migration;
 mod triangle_indexing;
 
@@ -20,6 +21,7 @@ extendr_module! {
     mod curveLandscape;
     // use ssa_source_only_migration;
     use simulation;
+    use ssa_birth_death_only;
     use triangle_indexing;
     use habitat_based;
 }
