@@ -23,5 +23,5 @@ extendr_module! {
     use simulation;
     use ssa_birth_death_only;
     use triangle_indexing;
-    use habitat_based;
+    // use habitat_based; // unfinished, annoying
 }

@@ -19,8 +19,6 @@ get_linear_id <- function(i, j, n) .Call(wrap__get_linear_id, i, j, n)
 #' Return the total number of elements in lower-triangular matrix (without diagonal)
 get_total_number_of_elements <- function(n) .Call(wrap__get_total_number_of_elements, n)
 
-get_habitat_island_ids <- function(neighbourhood) .Call(wrap__get_habitat_island_ids, neighbourhood)
-
 WildSSA <- new.env(parent = emptyenv())
 
 WildSSA$new_static <- function(n0, birth_baseline, death_baseline, carrying_capacity, migration_intercept, migration_baseline) .Call(wrap__WildSSA__new_static, n0, birth_baseline, death_baseline, carrying_capacity, migration_intercept, migration_baseline)

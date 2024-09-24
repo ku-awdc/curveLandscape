@@ -7,7 +7,7 @@ See [extendr: Getting Started guide](https://extendr.github.io/get-started.html)
 for building this package.
 
 ```r
-remotes::install_github("ku-awdc/curveLandscape)
+remotes::install_github("ku-awdc/curveLandscape")
 ```
 
 ## Parallelism
@@ -19,4 +19,3 @@ See [`rayon::num_threads`](https://docs.rs/rayon/latest/rayon/struct.ThreadPoolB
 for more details.
 
 ## Developer Guide
-
