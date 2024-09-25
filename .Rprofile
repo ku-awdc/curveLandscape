@@ -1,3 +1,4 @@
+if(FALSE){
 # options(editor = "code")
 # if (interactive()) {
 #   library("magrittr")
@@ -24,3 +25,4 @@ conflicts_prefer(dplyr::filter)
 
 
 Sys.setenv("HEXSCAPE_STORAGE"="~/Documents/GitHub/hexscape_cache")
+}

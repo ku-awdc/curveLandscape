@@ -60,3 +60,18 @@ figures/*
 
 # Maintainer specific
 src/rust/Cargo.lock
+boar_centric_patches.rds
+data/aggregated_patches-crop.pdf
+data/aggregated_patches.pdf
+data/aggregated_patches.rds
+data/aggregated_patches_001.png
+data/aggregated_patches_002.png
+data/aggregated_patches_003.png
+data/aggregated_patches_004.png
+data/aggregated_patches_005.png
+data/all_landscapes.rda
+data/boar_centric_patches.rda
+data/habitat_map.rda
+data/naive_grids.rda
+patches.rds
+pig_farms_anonymised_3.rds
