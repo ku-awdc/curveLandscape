@@ -1,45 +1,6 @@
-devtools::load_all()
-
+library(curveLandscape)
 library(tidyverse)
 theme_set(theme_light())
-
-## 3-patch scenario:
-### patches have 0.75 a/km2, 0.25 a/km2, 0.1 a/km2
-dens <- c(0.75, 0.5, 0.25)
-### Sizes are 1,2,5,10,25
-sizes <- c(1,2,5,10,25)
-lapply(sizes, \(x) x*dens)
-
-#ccs <- c(19.9,7.9,9.9)
-#n0s <- c(10,0,0)
-
-ccs <- dens*sizes[2]
-ccs <- c(10,0.5,0.5)
-n0s <- c(sum(ccs),1,1)
-
-res <- all_models_patch_level(ccs, n0s)
-ggplot(res |> filter(Iteration==0), aes(x=Time, y=N, col=Type)) +
-  geom_line() +
-  facet_grid(Patch~Model, scales="free_y")
-
-
-ccs <- c(1,2,5,10,25)
-n0s <- pmax(ccs/2, 1)
-res <- all_models_patch_level(ccs, n0s, t_max=10, rep=250)
-ggplot(res |> filter(Iteration==0), aes(x=Time, y=N, ymin=LCI, ymax=UCI, col=Type)) +
-  geom_ribbon() + #alpha=0.25, col="transparent", fill="grey") +
-  geom_line() +
-  facet_grid(Patch~Model, scales="free_y")
-
-
-
-ccs <- c(1,2,5,12,25)
-n0s <- pmax(ccs/2, 1)
-res <- all_models_patch_level(ccs, n0s, t_max=10, rep=250)
-ggplot(res |> filter(Iteration==0), aes(x=Time, y=N, ymin=LCI, ymax=UCI, col=Type)) +
-  geom_ribbon() + #alpha=0.25, col="transparent", fill="grey") +
-  geom_line() +
-  facet_grid(Patch~Model, scales="free_y")
 
 
 ccs <- c(20,30,50)

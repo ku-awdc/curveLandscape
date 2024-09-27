@@ -1,4 +1,4 @@
-#' Get results for all 4 models (ODE and SDE) at patch level
+#' Get results for all 4 models (ODE and SSA) at patch level
 #'
 #' @param carrying_capacity vector of carrying capacity
 #' @param n0 vector of starting numbers
@@ -72,7 +72,7 @@ all_models_patch_level <- function(carrying_capacity, n0=carrying_capacity, t_ma
 #    facet_wrap(~Patch) +
 #    geom_hline(aes(yintercept=CC), yints, lty="dashed")
 
-  ## SDEs
+  ## SSAs
   models=result <- list(
     nomig = NA,
     static = NA,
@@ -114,13 +114,13 @@ all_models_patch_level <- function(carrying_capacity, n0=carrying_capacity, t_ma
       "static" ~ "Static",
       "wedge" ~ "Wedge",
       "smooth" ~ "Smooth"
-    ), Type = "SDE") |>
+    ), Type = "SSA") |>
     select(Time = time, Patch = id_patch, N = patch_count, Model, Iteration, Type) ->
-    sde_results
+    SSA_results
 
   bind_rows(
     ode_results |> mutate(Patch = as.integer(Patch)),
-    sde_results
+    SSA_results
   ) ->
     comb_results
 
@@ -132,7 +132,7 @@ all_models_patch_level <- function(carrying_capacity, n0=carrying_capacity, t_ma
     comb_results
 
   comb_results |>
-    filter(Type=="SDE") |>
+    filter(Type=="SSA") |>
     group_by(Time, Model, Patch, Type) |>
     summarise(LCI = quantile(N, 0.025), UCI = quantile(N, 0.975), N = mean(N), Iteration=0, .groups="drop") |>
     bind_rows(
