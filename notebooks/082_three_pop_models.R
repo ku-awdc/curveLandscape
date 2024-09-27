@@ -2,6 +2,7 @@ library(curveLandscape)
 library(tidyverse)
 theme_set(theme_light())
 
+set.seed(2024-09-27)
 
 ccs <- c(20,30,50)
 bind_rows(
