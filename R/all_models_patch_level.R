@@ -120,16 +120,23 @@ all_models_patch_level <- function(carrying_capacity, n0=carrying_capacity, t_ma
 
   bind_rows(
     ode_results |> mutate(Patch = as.integer(Patch)),
-    sde_results,
-    sde_results |> group_by(Time, Model, Patch, Type) |> summarise(N = mean(N), Iteration=0, .groups="drop")
+    sde_results
   ) ->
-    all_res
+    comb_results
 
-  bind_rows(
-    all_res,
-    all_res |>
-      group_by(Time, Model, Type, Iteration) |>
-      mutate(N = sum(N), Patch=0) |>
-      ungroup()
-  )
+  comb_results |>
+    group_by(Time, Model, Type, Iteration) |>
+    mutate(N = sum(N), Patch=0) |>
+    ungroup() |>
+    bind_rows(comb_results) ->
+    comb_results
+
+  comb_results |>
+    filter(Type=="SDE") |>
+    group_by(Time, Model, Patch, Type) |>
+    summarise(LCI = quantile(N, 0.025), UCI = quantile(N, 0.975), N = mean(N), Iteration=0, .groups="drop") |>
+    bind_rows(
+      comb_results |> mutate(LCI=NA_real_, UCI=NA_real_)
+    ) |>
+    mutate(Model = factor(Model, levels=c("NoMigration", "Static","Smooth","Wedge")))
 }
